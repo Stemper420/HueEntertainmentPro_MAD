@@ -7,6 +7,7 @@ using HueApi.Extensions;
 using HueApi.Models;
 using HueApi.Models.Requests;
 using HueLightDJ.Effects;
+using HueLightDJ.Services.ArtNet;
 using HueLightDJ.Services.Interfaces;
 using HueLightDJ.Services.Interfaces.Models;
 using HueLightDJ.Services.Models;
@@ -28,7 +29,9 @@ namespace HueLightDJ.Services
     public static Guid demo2Id = Guid.Parse("00000000-0000-0000-0000-000000000002");
 
     private static List<StreamingGroup> StreamingGroups { get; set; } = new List<StreamingGroup>();
+    private static List<StreamingConnectionState> StreamingConnectionStates { get; set; } = new List<StreamingConnectionState>();
     private static List<LightDJStreamingHueClient> StreamingHueClients { get; set; } = new List<LightDJStreamingHueClient>();
+    private static readonly object StreamingStateLock = new();
     public static List<EntertainmentLayer>? Layers { get; set; }
     private static int BPM { get; set; } = 120;
     public static Ref<TimeSpan> WaitTime { get; set; } = TimeSpan.FromMilliseconds(500);
@@ -315,8 +318,16 @@ namespace HueLightDJ.Services
         //Start auto updating this entertainment group
         client.AutoUpdateAsync(stream, _cts.Token, 50, onlySendDirtyStates: false);
 
-        StreamingHueClients.Add(client);
-        StreamingGroups.Add(stream);
+        lock (StreamingStateLock)
+        {
+          StreamingHueClients.Add(client);
+          StreamingGroups.Add(stream);
+          StreamingConnectionStates.Add(new StreamingConnectionState
+          {
+            Connection = bridgeConfig,
+            Stream = stream
+          });
+        }
 
         await hub.SendAsync("StatusMsg", $"Succesfully connected to bridge {bridgeConfig.Ip}");
 
@@ -374,10 +385,18 @@ namespace HueLightDJ.Services
     private static EntertainmentLayer GetNewLayer(bool isBaseLayer = false)
     {
       var layer = new EntertainmentLayer(isBaseLayer);
-      foreach (var stream in StreamingGroups)
+      lock (StreamingStateLock)
       {
-        var all = stream.GetNewLayer(isBaseLayer);
-        layer.AddRange(all);
+        foreach (var state in StreamingConnectionStates)
+        {
+          var all = state.Stream.GetNewLayer(isBaseLayer).ToList();
+          if (isBaseLayer)
+            state.BaseLights = all;
+          else
+            state.EffectLights = all;
+
+          layer.AddRange(all);
+        }
       }
       return layer;
     }
@@ -401,8 +420,12 @@ namespace HueLightDJ.Services
       }
 
       Layers = null;
-      StreamingHueClients.Clear();
-      StreamingGroups.Clear();
+      lock (StreamingStateLock)
+      {
+        StreamingHueClients.Clear();
+        StreamingGroups.Clear();
+        StreamingConnectionStates.Clear();
+      }
       CurrentConnection = null;
 
       await hub.SendAsync("StatusMsg", "Disconnected");
@@ -415,6 +438,21 @@ namespace HueLightDJ.Services
         throw new Exception("No layers found.");
 
       return Layers.First();
+    }
+
+    internal static List<ArtNetRuntimeLightGroup> GetArtNetRuntimeLightGroups()
+    {
+      lock (StreamingStateLock)
+      {
+        return StreamingConnectionStates
+          .Where(x => x.BaseLights.Any())
+          .Select(x => new ArtNetRuntimeLightGroup
+          {
+            Connection = x.Connection,
+            Lights = x.BaseLights
+          })
+          .ToList();
+      }
     }
 
     public async static Task<bool> IsStreamingActive()
@@ -460,6 +498,14 @@ namespace HueLightDJ.Services
     {
       var result = await SetBPM(BPM + value);
       return result;
+    }
+
+    private class StreamingConnectionState
+    {
+      public required ConnectionConfiguration Connection { get; init; }
+      public required StreamingGroup Stream { get; init; }
+      public List<EntertainmentLight> BaseLights { get; set; } = new();
+      public List<EntertainmentLight> EffectLights { get; set; } = new();
     }
   }
 }

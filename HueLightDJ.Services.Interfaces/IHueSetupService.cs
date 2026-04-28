@@ -14,7 +14,13 @@ namespace HueLightDJ.Services.Interfaces
     Task<EntertainmentGroupResult> GetEntertainmentGroupsAsync(HueSetupRequest request, CallContext context = default);
 
     [OperationContract]
+    Task<EntertainmentGroupChannelsResult> GetEntertainmentGroupChannelsAsync(HueSetupRequest request, CallContext context = default);
+
+    [OperationContract]
     Task IdentifyGroupsAsync(HueSetupRequest request, CallContext context = default);
+
+    [OperationContract]
+    Task IdentifyEntertainmentChannelAsync(IdentifyEntertainmentChannelRequest request, CallContext context = default);
 
     [OperationContract]
     Task<IEnumerable<LocatedBridge>> LocateBridgesAsync(CallContext context = default);

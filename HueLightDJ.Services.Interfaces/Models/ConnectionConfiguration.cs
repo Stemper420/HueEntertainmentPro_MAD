@@ -1,5 +1,6 @@
 using ProtoBuf;
 using System;
+using System.Collections.Generic;
 
 namespace HueLightDJ.Services.Interfaces.Models
 {
@@ -11,5 +12,9 @@ namespace HueLightDJ.Services.Interfaces.Models
     public required string EntertainmentKey { get; set; }
     public Guid? GroupId { get; set; }
     public bool UseSimulator { get; set; }
+    public int ArtNetUniverse { get; set; }
+    public int ArtNetStartChannel { get; set; } = 1;
+    public ArtNetFixtureMode ArtNetFixtureMode { get; set; } = ArtNetFixtureMode.Rgb3;
+    public List<int> ArtNetLightOrder { get; set; } = new();
   }
 }

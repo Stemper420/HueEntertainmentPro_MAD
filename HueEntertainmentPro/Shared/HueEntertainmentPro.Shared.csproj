@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <PackageReference Include="protobuf-net.Grpc" Version="1.2.2" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.7" />
     <PackageReference Include="System.ServiceModel.Primitives" Version="10.0.652802" />
   </ItemGroup>
 

@@ -48,6 +48,63 @@ namespace HueLightDJ.Services
       }
     }
 
+    public async Task<EntertainmentGroupChannelsResult> GetEntertainmentGroupChannelsAsync(HueSetupRequest request, CallContext context = default)
+    {
+      if (!request.GroupId.HasValue)
+        throw new ArgumentNullException("GroupId is null");
+
+      try
+      {
+        var hueClient = new LocalHueApi(request.Ip, request.Key);
+        var groupResult = await hueClient.EntertainmentConfiguration.GetByIdAsync(request.GroupId.Value);
+        var group = groupResult.Data.FirstOrDefault();
+        if (group == null)
+          return new EntertainmentGroupChannelsResult { ErrorMessage = "Entertainment group not found." };
+
+        var servicePositions = group.Locations.ServiceLocations
+          .SelectMany(serviceLocation => serviceLocation.Positions.Select((position, index) => new
+          {
+            ServiceId = serviceLocation.Service?.Rid,
+            PositionIndex = index,
+            Position = position
+          }))
+          .ToList();
+
+        var channels = group.Channels
+          .OrderBy(channel => channel.ChannelId)
+          .Select(channel =>
+          {
+            var service = servicePositions.FirstOrDefault(x => PositionsMatch(x.Position, channel.Position));
+            return new EntertainmentChannelInfo
+            {
+              ChannelId = channel.ChannelId,
+              EntertainmentId = service?.ServiceId,
+              PositionIndex = service?.PositionIndex ?? channel.ChannelId,
+              X = channel.Position.X,
+              Y = channel.Position.Y,
+              Z = channel.Position.Z
+            };
+          })
+          .ToList();
+
+        return new EntertainmentGroupChannelsResult { Channels = channels };
+      }
+      catch (UnauthorizedAccessException)
+      {
+        return new EntertainmentGroupChannelsResult
+        {
+          ErrorMessage = "Unauthorized. Please check if your key is correct."
+        };
+      }
+      catch (Exception)
+      {
+        return new EntertainmentGroupChannelsResult()
+        {
+          ErrorMessage = $"Could not connect to {request.Ip}"
+        };
+      }
+    }
+
     public async Task IdentifyGroupsAsync(HueSetupRequest request, CallContext context = default)
     {
       if (!request.GroupId.HasValue)
@@ -79,6 +136,54 @@ namespace HueLightDJ.Services
         await Task.Delay(100); //prevent rate limitiing
       }
 
+    }
+
+    public async Task IdentifyEntertainmentChannelAsync(IdentifyEntertainmentChannelRequest request, CallContext context = default)
+    {
+      var localHueClient = new LocalHueApi(request.Ip, request.Key);
+      var groupResult = await localHueClient.EntertainmentConfiguration.GetByIdAsync(request.GroupId);
+      var group = groupResult.Data.FirstOrDefault();
+      if (group == null)
+        return;
+
+      var selectedChannel = group.Channels.FirstOrDefault(x => x.ChannelId == request.ChannelId);
+      if (selectedChannel == null)
+        return;
+
+      var serviceLocation = group.Locations.ServiceLocations
+        .FirstOrDefault(x => x.Positions.Any(position => PositionsMatch(position, selectedChannel.Position)));
+
+      if (serviceLocation?.Service?.Rid == null)
+      {
+        await IdentifyGroupsAsync(new HueSetupRequest
+        {
+          Ip = request.Ip,
+          Key = request.Key,
+          GroupId = request.GroupId
+        }, context);
+        return;
+      }
+
+      var allResources = await localHueClient.Resource.GetAllAsync();
+      var device = allResources.Data.Where(x => x.Id == serviceLocation.Service.Rid).Select(x => x.Owner?.Rid).FirstOrDefault();
+      var lightDeviceId = allResources.Data.Where(x => x.Id == device).Select(x => x.Services?.Where(x => x.Rtype == "light").FirstOrDefault()?.Rid).FirstOrDefault();
+
+      if (!lightDeviceId.HasValue)
+        return;
+
+      var update = new UpdateLight
+      {
+        Identify = new Identify()
+      };
+
+      await localHueClient.Light.UpdateAsync(lightDeviceId.Value, update);
+    }
+
+    private static bool PositionsMatch(HueApi.Models.HuePosition left, HueApi.Models.HuePosition right)
+    {
+      return Math.Abs(left.X - right.X) < 0.0001
+        && Math.Abs(left.Y - right.Y) < 0.0001
+        && Math.Abs(left.Z - right.Z) < 0.0001;
     }
 
     public async Task<IEnumerable<LocatedBridge>> LocateBridgesAsync(CallContext context = default)

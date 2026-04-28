@@ -25,6 +25,14 @@ namespace HueEntertainmentPro.Database.Models
 
     public string? Name { get; set; }
 
+    public int ArtNetUniverse { get; set; }
+
+    public int ArtNetStartChannel { get; set; } = 1;
+
+    public string ArtNetFixtureMode { get; set; } = "Rgb3";
+
+    public string? ArtNetLightOrderJson { get; set; }
+
     public DateTime CreatedDate { get; set; }
 
   }

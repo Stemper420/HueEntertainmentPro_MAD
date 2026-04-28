@@ -4,9 +4,11 @@
 @using HueEntertainmentPro.Shared.Models.Requests
 @using HueLightDJ.Services.Interfaces
 @using HueLightDJ.Services.Interfaces.Models
+@using HueLightDJ.Services.Interfaces.Models.Requests
 @inject IBridgeDataService BridgeService
 @inject IProAreaDataService ProAreaDataService
 @inject IHueSetupService HueSetupService
+@inject ILightDJService LightDJService
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject IToastService ToastService
@@ -54,6 +56,103 @@
 
 	<FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
 
+	<h4 style="margin-top: 20px;">Art-Net Input</h4>
+	<FluentCard Style="padding: 16px; margin-bottom: 16px;">
+		<FluentStack Orientation="Orientation.Vertical" Gap="12">
+			<label>
+				<input type="checkbox" checked="@proArea.ArtNetEnabled" @onchange="OnArtNetEnabledChanged" />
+				Enable Art-Net receiver for this area
+			</label>
+			<label>
+				Bind IP
+				<select value="@BindAddressValue" @onchange="OnArtNetBindAddressChanged" style="display: block; min-width: 260px;">
+					<option value="">Auto-select local IPv4</option>
+					@foreach (var address in artNetBindAddresses)
+					{
+						<option value="@address.Address">@address.Name</option>
+					}
+				</select>
+			</label>
+			<label>
+				Timeout behavior
+				<select value="@proArea.ArtNetTimeoutMode.ToString()" @onchange="OnArtNetTimeoutChanged" style="display: block; min-width: 260px;">
+					@foreach (var mode in Enum.GetValues<ArtNetTimeoutMode>())
+					{
+						<option value="@mode.ToString()">@mode</option>
+					}
+				</select>
+			</label>
+			<FluentButton Appearance="Appearance.Accent" Disabled="@(proArea.ArtNetEnabled && !proArea.Connections.Any())" @onclick="SaveArtNetSettings">Save Art-Net Settings</FluentButton>
+		</FluentStack>
+	</FluentCard>
+
+	@if (proArea.Connections.Any())
+	{
+		@foreach (var connection in proArea.Connections)
+		{
+			<FluentCard Style="padding: 16px; margin-bottom: 16px;">
+				<FluentStack Orientation="Orientation.Vertical" Gap="10">
+					<FluentHeader>@connection.Bridge.Name / @connection.Name</FluentHeader>
+					<FluentStack Orientation="Orientation.Horizontal" Gap="12">
+						<label>
+							Universe
+							<input type="number" min="0" max="32767" value="@connection.ArtNetUniverse" @onchange="e => SetUniverse(connection, e.Value?.ToString())" style="display: block; width: 110px;" />
+						</label>
+						<label>
+							Start channel
+							<input type="number" min="1" max="512" value="@connection.ArtNetStartChannel" @onchange="e => SetStartChannel(connection, e.Value?.ToString())" style="display: block; width: 110px;" />
+						</label>
+						<label>
+							Fixture mode
+							<select value="@connection.ArtNetFixtureMode.ToString()" @onchange="e => SetFixtureMode(connection, e.Value?.ToString())" style="display: block; min-width: 170px;">
+								@foreach (var mode in Enum.GetValues<ArtNetFixtureMode>())
+								{
+									<option value="@mode.ToString()">@mode (@GetFixtureWidth(mode)ch)</option>
+								}
+							</select>
+						</label>
+					</FluentStack>
+					@if (GetOrderedChannels(connection).Any())
+					{
+						<table style="width: 100%; border-collapse: collapse;">
+							<thead>
+								<tr>
+									<th style="text-align: left;">Fixture</th>
+									<th style="text-align: left;">Hue channel</th>
+									<th style="text-align: left;">DMX channels</th>
+									<th style="text-align: left;">Position</th>
+									<th style="text-align: left;">Order</th>
+								</tr>
+							</thead>
+							<tbody>
+								@foreach (var item in GetOrderedChannels(connection).Select((channel, index) => new { channel, index }))
+								{
+									<tr>
+										<td>@(item.index + 1)</td>
+										<td>@item.channel.ChannelId</td>
+										<td>@GetDmxRange(connection, item.index)</td>
+										<td>@item.channel.X.ToString("0.00"), @item.channel.Y.ToString("0.00"), @item.channel.Z.ToString("0.00")</td>
+										<td>
+											<FluentButton @onclick="() => MoveChannel(connection, item.channel.ChannelId, -1)">Up</FluentButton>
+											<FluentButton @onclick="() => MoveChannel(connection, item.channel.ChannelId, 1)">Down</FluentButton>
+											<FluentButton @onclick="() => IdentifyChannel(connection, item.channel.ChannelId)">Identify</FluentButton>
+										</td>
+									</tr>
+								}
+							</tbody>
+						</table>
+					}
+					else
+					{
+						<FluentLabel>@(GetChannelError(connection) ?? "Channel order will be available after the bridge can be queried.")</FluentLabel>
+					}
+				</FluentStack>
+			</FluentCard>
+		}
+	}
+
+	<FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
+
 	<h4 style="margin-top: 20px;">Add Entertainment Groups</h4>
 
 	var disabled = bridgeOptions?.Where(x => x.Disabled).Any() ?? false;
@@ -97,7 +196,14 @@
 								RowSize="@DataGridRowSize.Medium"
 								TGridItem="SimpleEntertainmentGroup">
 					<TemplateColumn Title="Action" Align="Align.Start">
-						<FluentButton @onclick="() => AddToArea(selectedBridge.Value.Id, context.Id, context.Name)">Add</FluentButton>
+						@if (IsGroupConnected(selectedBridge.Value.Id, context.Id))
+						{
+							<FluentButton Disabled="true">Added</FluentButton>
+						}
+						else
+						{
+							<FluentButton @onclick="() => AddToArea(selectedBridge.Value.Id, context.Id, context.Name)">Add</FluentButton>
+						}
 					</TemplateColumn>
 					<PropertyColumn Title="Name" Property="@(g => g.Name)" Sortable="true" Align="Align.Start" />
 					<PropertyColumn Title="Lights" Property="@(g => g.LightCount)" Sortable="true" Align="Align.Start" />
@@ -131,6 +237,10 @@ else
 
 	private List<Option<Bridge>>? bridgeOptions;
 	private Option<Bridge>? selectedBridge;
+	private IEnumerable<ArtNetBindAddress> artNetBindAddresses = new List<ArtNetBindAddress>();
+	private readonly Dictionary<Guid, List<EntertainmentChannelInfo>> artNetChannelsByConnection = new();
+	private readonly Dictionary<Guid, string> artNetChannelErrorsByConnection = new();
+	private string BindAddressValue => proArea?.ArtNetBindAddress ?? string.Empty;
 
 	protected override async Task OnInitializedAsync()
 	{
@@ -154,8 +264,10 @@ else
 			{
 				Value = b,
 				Text = $"{b.Name} ({b.Ip})",
-				Disabled = proArea.Connections.Select(x => x.Bridge.Id).Contains(b.Id)
+				Disabled = false
 			}).ToList();
+
+			await LoadArtNetOptions();
 
 		}
 		catch (Exception ex)
@@ -263,6 +375,207 @@ else
 		await OnInitializedAsync();
 
 		StateHasChanged();
+	}
+
+	private bool IsGroupConnected(Guid bridgeId, Guid groupId)
+	{
+		return proArea?.Connections.Any(x => x.Bridge.Id == bridgeId && x.GroupId == groupId) ?? false;
+	}
+
+	private async Task LoadArtNetOptions()
+	{
+		artNetBindAddresses = await LightDJService.GetArtNetBindAddresses();
+		artNetChannelsByConnection.Clear();
+		artNetChannelErrorsByConnection.Clear();
+
+		if (proArea == null)
+			return;
+
+		foreach (var connection in proArea.Connections)
+		{
+			try
+			{
+				var result = await HueSetupService.GetEntertainmentGroupChannelsAsync(new HueSetupRequest
+				{
+					Ip = connection.Bridge.Ip,
+					Key = connection.Bridge.Username,
+					GroupId = connection.GroupId
+				});
+
+				var channels = result.Channels.OrderBy(x => x.ChannelId).ToList();
+				artNetChannelsByConnection[connection.Id] = channels;
+				if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+					artNetChannelErrorsByConnection[connection.Id] = result.ErrorMessage;
+
+				if (!connection.ArtNetLightOrder.Any() && channels.Any())
+					connection.ArtNetLightOrder = channels.Select(x => x.ChannelId).ToList();
+			}
+			catch (Exception ex)
+			{
+				artNetChannelsByConnection[connection.Id] = new List<EntertainmentChannelInfo>();
+				artNetChannelErrorsByConnection[connection.Id] = ex.Message;
+			}
+		}
+	}
+
+	private async Task SaveArtNetSettings()
+	{
+		if (proArea == null)
+			return;
+
+		if (proArea.ArtNetEnabled && !proArea.Connections.Any())
+		{
+			ToastService.ShowError("Add at least one entertainment group before enabling Art-Net.");
+			return;
+		}
+
+		try
+		{
+			var connectionSettings = new List<BridgeGroupArtNetSettings>();
+			foreach (var connection in proArea.Connections)
+			{
+				var lightOrder = BuildArtNetLightOrder(connection);
+				if (proArea.ArtNetEnabled && !HasDiscoveredChannels(connection))
+				{
+					ToastService.ShowError($"Cannot enable Art-Net for {connection.Name ?? connection.GroupId.ToString()}: Hue channel order is not available.");
+					return;
+				}
+
+				connection.ArtNetLightOrder = lightOrder;
+				connectionSettings.Add(new BridgeGroupArtNetSettings
+				{
+					BridgeGroupConnectionId = connection.Id,
+					ArtNetUniverse = connection.ArtNetUniverse,
+					ArtNetStartChannel = connection.ArtNetStartChannel,
+					ArtNetFixtureMode = connection.ArtNetFixtureMode,
+					ArtNetLightOrder = lightOrder
+				});
+			}
+
+			proArea = await ProAreaDataService.UpdateProAreaArtNet(new UpdateProAreaArtNetRequest
+			{
+				ProAreaId = proArea.Id,
+				ArtNetEnabled = proArea.ArtNetEnabled,
+				ArtNetBindAddress = proArea.ArtNetBindAddress,
+				ArtNetTimeoutMode = proArea.ArtNetTimeoutMode,
+				Connections = connectionSettings
+			});
+
+			await LoadArtNetOptions();
+			ToastService.ShowSuccess("Art-Net settings saved.");
+		}
+		catch (Exception ex)
+		{
+			ToastService.ShowError($"Failed to save Art-Net settings: {ex.Message}");
+		}
+	}
+
+	private void OnArtNetEnabledChanged(ChangeEventArgs args)
+	{
+		if (proArea != null)
+			proArea.ArtNetEnabled = args.Value is bool value ? value : bool.TryParse(args.Value?.ToString(), out var parsed) && parsed;
+	}
+
+	private void OnArtNetBindAddressChanged(ChangeEventArgs args)
+	{
+		if (proArea != null)
+			proArea.ArtNetBindAddress = string.IsNullOrWhiteSpace(args.Value?.ToString()) ? null : args.Value?.ToString();
+	}
+
+	private void OnArtNetTimeoutChanged(ChangeEventArgs args)
+	{
+		if (proArea != null && Enum.TryParse<ArtNetTimeoutMode>(args.Value?.ToString(), out var mode))
+			proArea.ArtNetTimeoutMode = mode;
+	}
+
+	private void SetUniverse(BridgeGroupConnection connection, string? value)
+	{
+		if (int.TryParse(value, out var universe))
+			connection.ArtNetUniverse = Math.Clamp(universe, 0, 32767);
+	}
+
+	private void SetStartChannel(BridgeGroupConnection connection, string? value)
+	{
+		if (int.TryParse(value, out var startChannel))
+			connection.ArtNetStartChannel = Math.Clamp(startChannel, 1, 512);
+	}
+
+	private void SetFixtureMode(BridgeGroupConnection connection, string? value)
+	{
+		if (Enum.TryParse<ArtNetFixtureMode>(value, out var mode))
+			connection.ArtNetFixtureMode = mode;
+	}
+
+	private IEnumerable<EntertainmentChannelInfo> GetOrderedChannels(BridgeGroupConnection connection)
+	{
+		if (!artNetChannelsByConnection.TryGetValue(connection.Id, out var channels))
+			return Enumerable.Empty<EntertainmentChannelInfo>();
+
+		var byId = channels.ToDictionary(x => x.ChannelId);
+		var orderedIds = connection.ArtNetLightOrder.Where(byId.ContainsKey).Distinct().ToList();
+		orderedIds.AddRange(channels.Select(x => x.ChannelId).Where(id => !orderedIds.Contains(id)).OrderBy(id => id));
+		return orderedIds.Select(id => byId[id]);
+	}
+
+	private List<int> BuildArtNetLightOrder(BridgeGroupConnection connection)
+	{
+		var discoveredOrder = GetOrderedChannels(connection).Select(x => x.ChannelId).ToList();
+		return discoveredOrder.Any()
+			? discoveredOrder
+			: connection.ArtNetLightOrder.Distinct().ToList();
+	}
+
+	private bool HasDiscoveredChannels(BridgeGroupConnection connection)
+	{
+		return artNetChannelsByConnection.TryGetValue(connection.Id, out var channels) && channels.Any();
+	}
+
+	private string? GetChannelError(BridgeGroupConnection connection)
+	{
+		return artNetChannelErrorsByConnection.TryGetValue(connection.Id, out var error)
+			? $"Channel order is unavailable: {error}"
+			: null;
+	}
+
+	private void MoveChannel(BridgeGroupConnection connection, int channelId, int delta)
+	{
+		var ordered = GetOrderedChannels(connection).Select(x => x.ChannelId).ToList();
+		var index = ordered.IndexOf(channelId);
+		var target = index + delta;
+		if (index < 0 || target < 0 || target >= ordered.Count)
+			return;
+
+		(ordered[index], ordered[target]) = (ordered[target], ordered[index]);
+		connection.ArtNetLightOrder = ordered;
+	}
+
+	private async Task IdentifyChannel(BridgeGroupConnection connection, int channelId)
+	{
+		await HueSetupService.IdentifyEntertainmentChannelAsync(new IdentifyEntertainmentChannelRequest
+		{
+			Ip = connection.Bridge.Ip,
+			Key = connection.Bridge.Username,
+			GroupId = connection.GroupId,
+			ChannelId = channelId
+		});
+	}
+
+	private string GetDmxRange(BridgeGroupConnection connection, int fixtureIndex)
+	{
+		var first = connection.ArtNetStartChannel + (fixtureIndex * GetFixtureWidth(connection.ArtNetFixtureMode));
+		var last = first + GetFixtureWidth(connection.ArtNetFixtureMode) - 1;
+		return $"{first}-{last}";
+	}
+
+	private static int GetFixtureWidth(ArtNetFixtureMode mode)
+	{
+		return mode switch
+		{
+			ArtNetFixtureMode.Rgb3 => 3,
+			ArtNetFixtureMode.Rgbww5 => 5,
+			ArtNetFixtureMode.DimmerRgbww6 => 6,
+			_ => 3
+		};
 	}
 
 	private async Task IdentifyGroup(Guid bridgeId, Guid groupId)

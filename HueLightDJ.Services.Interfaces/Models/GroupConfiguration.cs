@@ -13,5 +13,8 @@ namespace HueLightDJ.Services.Interfaces.Models
     public SimpleHuePosition? LocationCenter { get; set; }
     public bool IsAlwaysVisible { get; set; }
     public bool HideDisconnect { get; set; }
+    public bool ArtNetEnabled { get; set; }
+    public string? ArtNetBindAddress { get; set; }
+    public ArtNetTimeoutMode ArtNetTimeoutMode { get; set; } = ArtNetTimeoutMode.Blackout;
   }
 }

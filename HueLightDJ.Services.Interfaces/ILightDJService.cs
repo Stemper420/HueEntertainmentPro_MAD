@@ -1,6 +1,7 @@
 using HueLightDJ.Services.Interfaces.Models;
 using HueLightDJ.Services.Interfaces.Models.Requests;
 using ProtoBuf.Grpc;
+using System.Collections.Generic;
 using System.ServiceModel;
 using System.Threading.Tasks;
 
@@ -14,6 +15,9 @@ namespace HueLightDJ.Services.Interfaces
 
     [OperationContract]
     Task<StatusModel> GetStatus(CallContext context = default);
+
+    [OperationContract]
+    Task<IEnumerable<ArtNetBindAddress>> GetArtNetBindAddresses(CallContext context = default);
 
     [OperationContract]
     Task<EffectsVM> GetEffects(CallContext context = default);
