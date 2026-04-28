@@ -53,6 +53,25 @@ public class HueOutputCoordinatorTests
   }
 
   [Fact]
+  public async Task ApplyArtNetFramesAsync_keeps_session_routing_stable_if_profile_order_changes_after_start()
+  {
+    var profile = CreateProfile(2);
+    var factory = new FakeHueHubSessionFactory();
+    var coordinator = new HueOutputCoordinator(factory);
+    await coordinator.StartAsync(profile, CancellationToken.None);
+
+    profile.HubMappings.Reverse();
+
+    await coordinator.ApplyArtNetFramesAsync(new[]
+    {
+      new ArtDmxFrame { Universe = 1, Sequence = 1, Physical = 0, Data = new byte[] { 255, 0, 0, 0, 255, 0 } }
+    }, CancellationToken.None);
+
+    Assert.Empty(factory.Sessions[0].Outputs);
+    Assert.Equal(2, factory.Sessions[1].Outputs.Count);
+  }
+
+  [Fact]
   public async Task ApplyArtNetFramesAsync_caps_brightness_to_profile_limit()
   {
     var profile = CreateProfile(1);

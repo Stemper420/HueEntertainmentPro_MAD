@@ -20,6 +20,8 @@ public partial class App : Application
   public App()
   {
     InitializeComponent();
+    UnhandledException += App_UnhandledException;
+    AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
     host = Host.CreateDefaultBuilder()
       .ConfigureServices(services =>
       {
@@ -41,6 +43,34 @@ public partial class App : Application
         services.AddTransient<MainWindow>();
       })
       .Build();
+  }
+
+  private static void App_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+  {
+    WriteCrashLog("XAML unhandled exception", e.Exception);
+  }
+
+  private static void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+  {
+    WriteCrashLog("Domain unhandled exception", e.ExceptionObject as Exception);
+  }
+
+  private static void WriteCrashLog(string category, Exception? exception)
+  {
+    try
+    {
+      string dataDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "HueArtNet");
+      Directory.CreateDirectory(dataDirectory);
+      string logPath = Path.Combine(dataDirectory, "crash.log");
+      File.AppendAllText(
+        logPath,
+        $"{DateTimeOffset.Now:O} {category}{Environment.NewLine}{exception}{Environment.NewLine}{Environment.NewLine}");
+    }
+    catch
+    {
+    }
   }
 
   protected override async void OnLaunched(LaunchActivatedEventArgs args)

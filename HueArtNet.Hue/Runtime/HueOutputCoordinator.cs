@@ -7,7 +7,8 @@ public sealed class HueOutputCoordinator
 {
   private readonly IHueHubSessionFactory sessionFactory;
   private readonly object sync = new();
-  private List<IHueHubSession> sessions = new();
+  private Dictionary<Guid, IHueHubSession> sessionsByMappingId = new();
+  private List<HubMapping> activeMappings = new();
   private ShowProfile? currentProfile;
 
   public HueOutputCoordinator(IHueHubSessionFactory sessionFactory)
@@ -24,19 +25,23 @@ public sealed class HueOutputCoordinator
       throw new InvalidOperationException(string.Join(Environment.NewLine, validation.Errors));
 
     var started = new List<IHueHubSession>();
+    var startedByMappingId = new Dictionary<Guid, IHueHubSession>();
+    var enabledMappings = profile.HubMappings.Where(x => x.Enabled).ToList();
     try
     {
-      foreach (var mapping in profile.HubMappings.Where(x => x.Enabled))
+      foreach (var mapping in enabledMappings)
       {
         cancellationToken.ThrowIfCancellationRequested();
         var session = sessionFactory.Create(mapping);
         await session.ConnectAsync(cancellationToken);
         started.Add(session);
+        startedByMappingId.Add(mapping.Id, session);
       }
 
       lock (sync)
       {
-        sessions = started.ToList();
+        sessionsByMappingId = new Dictionary<Guid, IHueHubSession>(startedByMappingId);
+        activeMappings = enabledMappings.ToList();
         currentProfile = profile;
       }
     }
@@ -45,7 +50,8 @@ public sealed class HueOutputCoordinator
       await StopSessionsAsync(started);
       lock (sync)
       {
-        sessions = new List<IHueHubSession>();
+        sessionsByMappingId = new Dictionary<Guid, IHueHubSession>();
+        activeMappings = new List<HubMapping>();
         currentProfile = null;
       }
 
@@ -58,8 +64,9 @@ public sealed class HueOutputCoordinator
     List<IHueHubSession> activeSessions;
     lock (sync)
     {
-      activeSessions = sessions;
-      sessions = new List<IHueHubSession>();
+      activeSessions = sessionsByMappingId.Values.ToList();
+      sessionsByMappingId = new Dictionary<Guid, IHueHubSession>();
+      activeMappings = new List<HubMapping>();
       currentProfile = null;
     }
 
@@ -72,8 +79,12 @@ public sealed class HueOutputCoordinator
     {
       return new HueOutputStatus
       {
-        IsRunning = sessions.Count > 0,
-        Sessions = sessions.Select(x => x.Status).ToList()
+        IsRunning = sessionsByMappingId.Count > 0,
+        Sessions = activeMappings
+          .Select(mapping => sessionsByMappingId.TryGetValue(mapping.Id, out var session) ? session.Status : null)
+          .Where(status => status != null)
+          .Select(status => status!)
+          .ToList()
       };
     }
   }
@@ -81,26 +92,27 @@ public sealed class HueOutputCoordinator
   public async Task ApplyArtNetFramesAsync(IReadOnlyCollection<ArtDmxFrame> frames, CancellationToken cancellationToken)
   {
     ShowProfile profile;
-    List<IHueHubSession> activeSessions;
+    List<HubMapping> mappings;
+    Dictionary<Guid, IHueHubSession> sessionSnapshot;
     lock (sync)
     {
-      if (currentProfile == null || sessions.Count == 0)
+      if (currentProfile == null || sessionsByMappingId.Count == 0)
         return;
 
       profile = currentProfile;
-      activeSessions = sessions.ToList();
+      mappings = activeMappings.ToList();
+      sessionSnapshot = new Dictionary<Guid, IHueHubSession>(sessionsByMappingId);
     }
 
     var framesByUniverse = frames.ToDictionary(x => x.Universe);
-    var enabledMappings = profile.HubMappings.Where(x => x.Enabled).ToList();
-
-    for (int index = 0; index < enabledMappings.Count && index < activeSessions.Count; index++)
+    foreach (var mapping in mappings)
     {
-      var mapping = enabledMappings[index];
       if (!framesByUniverse.TryGetValue(mapping.Universe, out var frame))
         continue;
 
-      var session = activeSessions[index];
+      if (!sessionSnapshot.TryGetValue(mapping.Id, out var session))
+        continue;
+
       var outputs = ArtNetDmxMapper.MapFrame(frame.Data, mapping, session.AvailableLightIds)
         .Select(output => ApplyBrightnessLimit(output, profile.Output.BrightnessLimit))
         .ToList();

@@ -4,204 +4,593 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hue Art-Net Controller">
 
-    <Grid Padding="24" RowSpacing="16">
+    <Grid Background="#F6F8FB" Padding="24" RowSpacing="18">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F6F8FB" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+            <SolidColorBrush x:Key="SurfaceAltBrush" Color="#EEF4FA" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#D6DEE8" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#111827" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5B6575" />
+            <SolidColorBrush x:Key="AccentBrush" Color="#0078D4" />
+            <SolidColorBrush x:Key="SuccessBrush" Color="#107C10" />
+            <SolidColorBrush x:Key="WarningBrush" Color="#B7791F" />
+
+            <Style x:Key="PanelStyle" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="18" />
+            </Style>
+
+            <Style x:Key="EyebrowStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="FontSize" Value="18" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="MetricValueStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
+
+            <Style TargetType="TextBox">
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+
+            <Style TargetType="PasswordBox">
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+
+            <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="MinHeight" Value="38" />
+                <Setter Property="Padding" Value="14,8" />
+            </Style>
+
+            <Style x:Key="ToolbarButtonStyle" TargetType="Button">
+                <Setter Property="MinHeight" Value="38" />
+                <Setter Property="Padding" Value="12,8" />
+            </Style>
+        </Grid.Resources>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="180" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" ColumnSpacing="16">
+        <Grid Grid.Row="0" ColumnSpacing="18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <StackPanel Spacing="4">
-                <TextBlock Text="Hue Art-Net Controller" FontSize="28" FontWeight="SemiBold" />
-                <TextBlock Text="Receive Art-Net DMX and drive up to 4 Philips Hue Entertainment hubs" Opacity="0.72" />
+            <StackPanel Spacing="3">
+                <TextBlock
+                    Text="Hue Art-Net Controller"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    FontSize="30"
+                    FontWeight="SemiBold" />
+                <TextBlock
+                    Text="Art-Net input, Hue Entertainment output, four bridge lanes"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    FontSize="14" />
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
-                <Button Content="New template" Click="NewTemplate_Click" />
-                <Button Content="Reload" Click="Reload_Click" />
-                <Button Content="Save profile" Click="SaveProfile_Click" />
-                <Button Content="Start profile" Click="StartProfile_Click" />
-                <Button Content="Stop" Click="StopProfile_Click" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Button Click="NewTemplate_Click" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Create a clean four-hub template">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <SymbolIcon Symbol="Add" />
+                        <TextBlock Text="New" />
+                    </StackPanel>
+                </Button>
+                <Button Click="Reload_Click" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Reload stored profile">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <SymbolIcon Symbol="Refresh" />
+                        <TextBlock Text="Reload" />
+                    </StackPanel>
+                </Button>
+                <Button Click="SaveProfile_Click" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Save current profile">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <SymbolIcon Symbol="Save" />
+                        <TextBlock Text="Save" />
+                    </StackPanel>
+                </Button>
+                <Button Click="StartProfile_Click" Style="{StaticResource PrimaryButtonStyle}" ToolTipService.ToolTip="Start Art-Net input and Hue output">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <SymbolIcon Symbol="Play" />
+                        <TextBlock Text="Start" />
+                    </StackPanel>
+                </Button>
+                <Button Click="StopProfile_Click" Style="{StaticResource ToolbarButtonStyle}" ToolTipService.ToolTip="Stop runtime">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <SymbolIcon Symbol="Stop" />
+                        <TextBlock Text="Stop" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Grid>
 
-        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-            <StackPanel Spacing="18">
-                <Grid ColumnSpacing="12" RowSpacing="8">
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="16">
+                <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220" />
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="220" />
-                        <ColumnDefinition Width="180" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <TextBlock Grid.Column="0" Text="Discovered bridge" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="1" Text="Apply to hub row" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="2" Text="Entertainment group" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="3" Text="Light order" FontWeight="SemiBold" />
-
-                    <ComboBox x:Name="DiscoveredBridgeComboBox" Grid.Row="1" Grid.Column="0" />
-                    <ComboBox x:Name="PairingHubRowComboBox" Grid.Row="1" Grid.Column="1" SelectedIndex="0">
-                        <ComboBoxItem Content="Hub 1" Tag="0" />
-                        <ComboBoxItem Content="Hub 2" Tag="1" />
-                        <ComboBoxItem Content="Hub 3" Tag="2" />
-                        <ComboBoxItem Content="Hub 4" Tag="3" />
-                    </ComboBox>
-                    <ComboBox x:Name="EntertainmentGroupComboBox" Grid.Row="1" Grid.Column="2" SelectionChanged="EntertainmentGroupComboBox_SelectionChanged" />
-                    <TextBox x:Name="PairedLightOrderTextBox" Grid.Row="1" Grid.Column="3" IsReadOnly="True" />
-                    <Button Grid.Row="1" Grid.Column="4" Content="Discover bridges" Click="DiscoverBridges_Click" />
-                    <Button x:Name="PairSelectedBridgeButton" Grid.Row="1" Grid.Column="5" Content="Pair selected" Click="PairSelectedBridge_Click" />
-                </Grid>
-
-                <Grid ColumnSpacing="12" RowSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" />
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="120" />
-                        <ColumnDefinition Width="120" />
-                        <ColumnDefinition Width="160" />
-                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="Profile name" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="1" Text="Bind IPv4" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="2" Text="UDP port" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="3" Text="FPS" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="4" Text="Timeout" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="5" Text="Seconds" FontWeight="SemiBold" />
+                    <Border Grid.Column="0" Style="{StaticResource PanelStyle}">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Runtime" Style="{StaticResource EyebrowStyle}" />
+                            <TextBlock x:Name="RuntimeStateText" Text="Stopped" Style="{StaticResource MetricValueStyle}" />
+                            <TextBlock x:Name="RuntimeProfileText" Text="No active profile" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
 
-                    <TextBox x:Name="ProfileNameTextBox" Grid.Row="1" Grid.Column="0" PlaceholderText="Main room" />
-                    <TextBox x:Name="BindAddressTextBox" Grid.Row="1" Grid.Column="1" PlaceholderText="0.0.0.0" />
-                    <TextBox x:Name="ArtNetPortTextBox" Grid.Row="1" Grid.Column="2" Text="6454" />
-                    <TextBox x:Name="OutputFpsTextBox" Grid.Row="1" Grid.Column="3" Text="20" />
-                    <ComboBox x:Name="TimeoutModeComboBox" Grid.Row="1" Grid.Column="4" SelectedIndex="0">
-                        <ComboBoxItem Content="Hold last frame" Tag="HoldLastFrame" />
-                        <ComboBoxItem Content="Blackout" Tag="Blackout" />
-                        <ComboBoxItem Content="Restore startup" Tag="RestoreStartupState" />
-                    </ComboBox>
-                    <TextBox x:Name="TimeoutSecondsTextBox" Grid.Row="1" Grid.Column="5" Text="2" />
+                    <Border Grid.Column="1" Style="{StaticResource PanelStyle}">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Art-Net" Style="{StaticResource EyebrowStyle}" />
+                            <TextBlock x:Name="ArtNetStateText" Text="Idle" Style="{StaticResource MetricValueStyle}" />
+                            <TextBlock x:Name="ArtNetPacketsText" Text="0 packets/s" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="2" Style="{StaticResource PanelStyle}">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Hue output" Style="{StaticResource EyebrowStyle}" />
+                            <TextBlock x:Name="HueStateText" Text="Offline" Style="{StaticResource MetricValueStyle}" />
+                            <TextBlock x:Name="HueSessionsText" Text="0 sessions" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="3" Style="{StaticResource PanelStyle}">
+                        <StackPanel Spacing="5">
+                            <TextBlock Text="Profile health" Style="{StaticResource EyebrowStyle}" />
+                            <TextBlock x:Name="ValidationStateText" Text="Not loaded" Style="{StaticResource MetricValueStyle}" />
+                            <TextBlock x:Name="ValidationDetailsText" Text="Load or create a profile" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
-                <Grid ColumnSpacing="8" RowSpacing="8">
+                <Grid ColumnSpacing="16">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="72" />
-                        <ColumnDefinition Width="130" />
-                        <ColumnDefinition Width="140" />
-                        <ColumnDefinition Width="190" />
-                        <ColumnDefinition Width="190" />
-                        <ColumnDefinition Width="220" />
-                        <ColumnDefinition Width="80" />
-                        <ColumnDefinition Width="80" />
-                        <ColumnDefinition Width="140" />
-                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="1.08*" />
+                        <ColumnDefinition Width="1*" />
                     </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="Enabled" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="1" Text="Hub name" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="2" Text="Bridge IP" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="3" Text="Application key" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="4" Text="Entertainment key" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="5" Text="Entertainment group ID" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="6" Text="Universe" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="7" Text="Start" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="8" Text="Mode" FontWeight="SemiBold" />
-                    <TextBlock Grid.Column="9" Text="Light order" FontWeight="SemiBold" />
+                    <Border Grid.Column="0" Style="{StaticResource PanelStyle}">
+                        <StackPanel Spacing="14">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="Hue bridge setup" Style="{StaticResource SectionTitleStyle}" />
+                                    <TextBlock x:Name="BridgeSetupStatusText" Text="No bridge selected" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Click="DiscoverBridges_Click" Style="{StaticResource ToolbarButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <SymbolIcon Symbol="Find" />
+                                        <TextBlock Text="Discover" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
 
-                    <CheckBox x:Name="Hub1EnabledCheckBox" Grid.Row="1" Grid.Column="0" IsChecked="True" />
-                    <TextBox x:Name="Hub1NameTextBox" Grid.Row="1" Grid.Column="1" />
-                    <TextBox x:Name="Hub1BridgeIpTextBox" Grid.Row="1" Grid.Column="2" />
-                    <PasswordBox x:Name="Hub1ApplicationKeyBox" Grid.Row="1" Grid.Column="3" />
-                    <PasswordBox x:Name="Hub1EntertainmentKeyBox" Grid.Row="1" Grid.Column="4" />
-                    <TextBox x:Name="Hub1EntertainmentGroupIdTextBox" Grid.Row="1" Grid.Column="5" />
-                    <TextBox x:Name="Hub1UniverseTextBox" Grid.Row="1" Grid.Column="6" />
-                    <TextBox x:Name="Hub1StartChannelTextBox" Grid.Row="1" Grid.Column="7" />
-                    <ComboBox x:Name="Hub1FixtureModeComboBox" Grid.Row="1" Grid.Column="8">
-                        <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
-                        <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
-                        <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
-                    </ComboBox>
-                    <TextBox x:Name="Hub1LightOrderTextBox" Grid.Row="1" Grid.Column="9" />
+                            <Grid ColumnSpacing="12" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.15*" />
+                                    <ColumnDefinition Width="0.85*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
 
-                    <CheckBox x:Name="Hub2EnabledCheckBox" Grid.Row="2" Grid.Column="0" IsChecked="True" />
-                    <TextBox x:Name="Hub2NameTextBox" Grid.Row="2" Grid.Column="1" />
-                    <TextBox x:Name="Hub2BridgeIpTextBox" Grid.Row="2" Grid.Column="2" />
-                    <PasswordBox x:Name="Hub2ApplicationKeyBox" Grid.Row="2" Grid.Column="3" />
-                    <PasswordBox x:Name="Hub2EntertainmentKeyBox" Grid.Row="2" Grid.Column="4" />
-                    <TextBox x:Name="Hub2EntertainmentGroupIdTextBox" Grid.Row="2" Grid.Column="5" />
-                    <TextBox x:Name="Hub2UniverseTextBox" Grid.Row="2" Grid.Column="6" />
-                    <TextBox x:Name="Hub2StartChannelTextBox" Grid.Row="2" Grid.Column="7" />
-                    <ComboBox x:Name="Hub2FixtureModeComboBox" Grid.Row="2" Grid.Column="8">
-                        <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
-                        <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
-                        <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
-                    </ComboBox>
-                    <TextBox x:Name="Hub2LightOrderTextBox" Grid.Row="2" Grid.Column="9" />
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="5">
+                                    <TextBlock Text="Discovered bridge" Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="DiscoveredBridgeComboBox" />
+                                </StackPanel>
 
-                    <CheckBox x:Name="Hub3EnabledCheckBox" Grid.Row="3" Grid.Column="0" IsChecked="True" />
-                    <TextBox x:Name="Hub3NameTextBox" Grid.Row="3" Grid.Column="1" />
-                    <TextBox x:Name="Hub3BridgeIpTextBox" Grid.Row="3" Grid.Column="2" />
-                    <PasswordBox x:Name="Hub3ApplicationKeyBox" Grid.Row="3" Grid.Column="3" />
-                    <PasswordBox x:Name="Hub3EntertainmentKeyBox" Grid.Row="3" Grid.Column="4" />
-                    <TextBox x:Name="Hub3EntertainmentGroupIdTextBox" Grid.Row="3" Grid.Column="5" />
-                    <TextBox x:Name="Hub3UniverseTextBox" Grid.Row="3" Grid.Column="6" />
-                    <TextBox x:Name="Hub3StartChannelTextBox" Grid.Row="3" Grid.Column="7" />
-                    <ComboBox x:Name="Hub3FixtureModeComboBox" Grid.Row="3" Grid.Column="8">
-                        <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
-                        <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
-                        <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
-                    </ComboBox>
-                    <TextBox x:Name="Hub3LightOrderTextBox" Grid.Row="3" Grid.Column="9" />
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Target hub" Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="PairingHubRowComboBox" SelectedIndex="0">
+                                        <ComboBoxItem Content="Hub 1" Tag="0" />
+                                        <ComboBoxItem Content="Hub 2" Tag="1" />
+                                        <ComboBoxItem Content="Hub 3" Tag="2" />
+                                        <ComboBoxItem Content="Hub 4" Tag="3" />
+                                    </ComboBox>
+                                </StackPanel>
 
-                    <CheckBox x:Name="Hub4EnabledCheckBox" Grid.Row="4" Grid.Column="0" IsChecked="True" />
-                    <TextBox x:Name="Hub4NameTextBox" Grid.Row="4" Grid.Column="1" />
-                    <TextBox x:Name="Hub4BridgeIpTextBox" Grid.Row="4" Grid.Column="2" />
-                    <PasswordBox x:Name="Hub4ApplicationKeyBox" Grid.Row="4" Grid.Column="3" />
-                    <PasswordBox x:Name="Hub4EntertainmentKeyBox" Grid.Row="4" Grid.Column="4" />
-                    <TextBox x:Name="Hub4EntertainmentGroupIdTextBox" Grid.Row="4" Grid.Column="5" />
-                    <TextBox x:Name="Hub4UniverseTextBox" Grid.Row="4" Grid.Column="6" />
-                    <TextBox x:Name="Hub4StartChannelTextBox" Grid.Row="4" Grid.Column="7" />
-                    <ComboBox x:Name="Hub4FixtureModeComboBox" Grid.Row="4" Grid.Column="8">
-                        <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
-                        <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
-                        <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
-                    </ComboBox>
-                    <TextBox x:Name="Hub4LightOrderTextBox" Grid.Row="4" Grid.Column="9" />
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="5">
+                                    <TextBlock Text="Entertainment group" Style="{StaticResource FieldLabelStyle}" />
+                                    <ComboBox x:Name="EntertainmentGroupComboBox" SelectionChanged="EntertainmentGroupComboBox_SelectionChanged" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Paired light order" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="PairedLightOrderTextBox" IsReadOnly="True" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Button x:Name="PairSelectedBridgeButton" Click="PairSelectedBridge_Click" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Left">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <SymbolIcon Symbol="Link" />
+                                    <TextBlock Text="Pair selected bridge" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource PanelStyle}">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="Art-Net profile" Style="{StaticResource SectionTitleStyle}" />
+
+                            <Grid ColumnSpacing="12" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Spacing="5">
+                                    <TextBlock Text="Profile name" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="ProfileNameTextBox" PlaceholderText="Main room" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Spacing="5">
+                                    <TextBlock Text="Bind IPv4" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="BindAddressTextBox" PlaceholderText="0.0.0.0" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="UDP port" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="ArtNetPortTextBox" Text="6454" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="0" Spacing="5">
+                                    <TextBlock Text="Output FPS" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="OutputFpsTextBox" Text="20" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Timeout seconds" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="TimeoutSecondsTextBox" Text="2" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Spacing="5">
+                                <TextBlock Text="Timeout mode" Style="{StaticResource FieldLabelStyle}" />
+                                <ComboBox x:Name="TimeoutModeComboBox" SelectedIndex="0">
+                                    <ComboBoxItem Content="Hold last frame" Tag="HoldLastFrame" />
+                                    <ComboBoxItem Content="Blackout" Tag="Blackout" />
+                                    <ComboBoxItem Content="Restore startup" Tag="RestoreStartupState" />
+                                </ComboBox>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </Grid>
+
+                <StackPanel Spacing="12">
+                    <TextBlock Text="Hub mappings" Style="{StaticResource SectionTitleStyle}" />
+
+                    <Border Style="{StaticResource PanelStyle}">
+                        <Grid RowSpacing="12">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="Hub1EnabledCheckBox" Grid.Column="0" Content="Hub 1" IsChecked="True" VerticalAlignment="Bottom" />
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Hub name" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub1NameTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Bridge IP" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub1BridgeIpTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Universe" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub1UniverseTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Start channel" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub1StartChannelTextBox" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="Hub1FixtureModeComboBox" Grid.Column="0" VerticalAlignment="Bottom">
+                                    <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
+                                    <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
+                                    <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
+                                </ComboBox>
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Application key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub1ApplicationKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Entertainment key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub1EntertainmentKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Entertainment group ID" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub1EntertainmentGroupIdTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Light order" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub1LightOrderTextBox" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource PanelStyle}">
+                        <Grid RowSpacing="12">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="Hub2EnabledCheckBox" Grid.Column="0" Content="Hub 2" IsChecked="True" VerticalAlignment="Bottom" />
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Hub name" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub2NameTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Bridge IP" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub2BridgeIpTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Universe" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub2UniverseTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Start channel" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub2StartChannelTextBox" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="Hub2FixtureModeComboBox" Grid.Column="0" VerticalAlignment="Bottom">
+                                    <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
+                                    <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
+                                    <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
+                                </ComboBox>
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Application key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub2ApplicationKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Entertainment key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub2EntertainmentKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Entertainment group ID" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub2EntertainmentGroupIdTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Light order" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub2LightOrderTextBox" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource PanelStyle}">
+                        <Grid RowSpacing="12">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="Hub3EnabledCheckBox" Grid.Column="0" Content="Hub 3" IsChecked="True" VerticalAlignment="Bottom" />
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Hub name" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub3NameTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Bridge IP" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub3BridgeIpTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Universe" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub3UniverseTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Start channel" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub3StartChannelTextBox" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="Hub3FixtureModeComboBox" Grid.Column="0" VerticalAlignment="Bottom">
+                                    <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
+                                    <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
+                                    <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
+                                </ComboBox>
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Application key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub3ApplicationKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Entertainment key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub3EntertainmentKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Entertainment group ID" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub3EntertainmentGroupIdTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Light order" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub3LightOrderTextBox" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource PanelStyle}">
+                        <Grid RowSpacing="12">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="Hub4EnabledCheckBox" Grid.Column="0" Content="Hub 4" IsChecked="True" VerticalAlignment="Bottom" />
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Hub name" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub4NameTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Bridge IP" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub4BridgeIpTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Universe" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub4UniverseTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Start channel" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub4StartChannelTextBox" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="Hub4FixtureModeComboBox" Grid.Column="0" VerticalAlignment="Bottom">
+                                    <ComboBoxItem Content="RGB 3ch" Tag="Rgb3" />
+                                    <ComboBoxItem Content="RGBWW 5ch" Tag="Rgbww5" />
+                                    <ComboBoxItem Content="Dimmer RGBWW 6ch" Tag="DimmerRgbww6" />
+                                </ComboBox>
+                                <StackPanel Grid.Column="1" Spacing="5">
+                                    <TextBlock Text="Application key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub4ApplicationKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2" Spacing="5">
+                                    <TextBlock Text="Entertainment key" Style="{StaticResource FieldLabelStyle}" />
+                                    <PasswordBox x:Name="Hub4EntertainmentKeyBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3" Spacing="5">
+                                    <TextBlock Text="Entertainment group ID" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub4EntertainmentGroupIdTextBox" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="4" Spacing="5">
+                                    <TextBlock Text="Light order" Style="{StaticResource FieldLabelStyle}" />
+                                    <TextBox x:Name="Hub4LightOrderTextBox" />
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <Border Style="{StaticResource PanelStyle}">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Activity log" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBox
+                            x:Name="StatusText"
+                            AcceptsReturn="True"
+                            Height="170"
+                            IsReadOnly="True"
+                            TextWrapping="Wrap"
+                            Text="No profile running." />
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
-
-        <TextBlock Grid.Row="2" Text="Status" FontWeight="SemiBold" />
-
-        <TextBox
-            x:Name="StatusText"
-            Grid.Row="3"
-            AcceptsReturn="True"
-            IsReadOnly="True"
-            TextWrapping="Wrap"
-            Text="No profile running." />
     </Grid>
 </Window>

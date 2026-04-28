@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
   private int? currentPairingRowIndex;
   private bool isPairing;
   private bool suppressEntertainmentGroupSelection;
+  private bool hasPendingRuntimeChanges;
 
   public MainWindow(
     IServiceScopeFactory scopeFactory,
@@ -75,16 +76,17 @@ public sealed partial class MainWindow : Window
     if (isPairing)
       return;
 
+    if (DiscoveredBridgeComboBox.SelectedItem is not HueBridgeCandidate bridge)
+    {
+      await RefreshStatusAsync("Select a discovered Hue bridge before pairing.");
+      return;
+    }
+
     try
     {
       isPairing = true;
       PairSelectedBridgeButton.IsEnabled = false;
       ClearPairingState();
-      if (DiscoveredBridgeComboBox.SelectedItem is not HueBridgeCandidate bridge)
-      {
-        await RefreshStatusAsync("Select a discovered Hue bridge before pairing.");
-        return;
-      }
 
       int targetRowIndex = GetSelectedHubRowIndex();
       var result = await bridgeSetupService.PairAsync(
@@ -108,7 +110,10 @@ public sealed partial class MainWindow : Window
       }
 
       ApplyPairingToHub(result, targetRowIndex, updateCredentials: true);
-      await RefreshStatusAsync($"Paired {result.BridgeName}. Select an Entertainment group if more than one was found.");
+      var restartMessage = MarkPendingRuntimeChangesIfRunning()
+        ? " Restart profile to apply this hub change to the active output."
+        : string.Empty;
+      await RefreshStatusAsync($"Paired {result.BridgeName}. Select an Entertainment group if more than one was found.{restartMessage}");
     }
     catch (Exception ex)
     {
@@ -121,10 +126,14 @@ public sealed partial class MainWindow : Window
     }
   }
 
-  private void EntertainmentGroupComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+  private async void EntertainmentGroupComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
   {
     if (!suppressEntertainmentGroupSelection && currentPairingResult != null && currentPairingRowIndex.HasValue)
+    {
       ApplyPairingToHub(currentPairingResult, currentPairingRowIndex.Value, updateCredentials: false);
+      if (MarkPendingRuntimeChangesIfRunning())
+        await RefreshStatusAsync("Updated paired Entertainment group. Restart profile to apply this change to the active output.");
+    }
   }
 
   private async void StartProfile_Click(object sender, RoutedEventArgs e)
@@ -142,6 +151,7 @@ public sealed partial class MainWindow : Window
       await WithRepositoryAsync(repository => repository.SaveAsync(profile, CancellationToken.None));
       currentProfile = profile;
       await showRuntime.StartAsync(profile, CancellationToken.None);
+      hasPendingRuntimeChanges = false;
       await RefreshStatusAsync($"Started profile '{profile.Name}'.");
     }
     catch (Exception ex)
@@ -153,6 +163,7 @@ public sealed partial class MainWindow : Window
   private async void StopProfile_Click(object sender, RoutedEventArgs e)
   {
     await showRuntime.StopAsync();
+    hasPendingRuntimeChanges = false;
     await RefreshStatusAsync("Profile stopped.");
   }
 
@@ -190,23 +201,24 @@ public sealed partial class MainWindow : Window
 
     await WithRepositoryAsync(repository => repository.SaveAsync(profile, CancellationToken.None));
     currentProfile = profile;
-    await RefreshStatusAsync($"Saved profile '{profile.Name}'.");
+    var restartMessage = MarkPendingRuntimeChangesIfRunning()
+      ? " Restart profile to apply saved routing changes to the active output."
+      : string.Empty;
+    await RefreshStatusAsync($"Saved profile '{profile.Name}'.{restartMessage}");
   }
 
   private async Task RefreshStatusAsync(string? message = null, IEnumerable<string>? validationErrors = null)
   {
     var profiles = await WithRepositoryAsync(repository => repository.GetAllAsync(CancellationToken.None));
     var runtimeStatus = showRuntime.GetStatus();
+    var validationErrorsList = validationErrors?.ToList() ?? new List<string>();
     var lines = new List<string>();
 
     if (!string.IsNullOrWhiteSpace(message))
       lines.Add(message);
 
-    if (validationErrors != null)
-    {
-      foreach (var error in validationErrors)
-        lines.Add($"- {error}");
-    }
+    foreach (var error in validationErrorsList)
+      lines.Add($"- {error}");
 
     lines.Add($"Stored profiles: {profiles.Count}");
     foreach (var profile in profiles)
@@ -232,7 +244,69 @@ public sealed partial class MainWindow : Window
     foreach (var session in runtimeStatus.HueOutput.Sessions)
       lines.Add($"- {session.Name} ({session.BridgeIp}): {(session.IsConnected ? "connected" : "offline")} {session.LastError}");
 
+    UpdateStatusCards(profiles, runtimeStatus, validationErrorsList);
     StatusText.Text = string.Join(Environment.NewLine, lines);
+  }
+
+  private void UpdateStatusCards(
+    IReadOnlyList<ShowProfile> profiles,
+    ArtNetShowRuntimeStatus runtimeStatus,
+    IReadOnlyList<string> validationErrors)
+  {
+    RuntimeStateText.Text = runtimeStatus.IsRunning
+      ? runtimeStatus.IsTimedOut ? "Timed out" : "Running"
+      : "Stopped";
+    RuntimeProfileText.Text = runtimeStatus.IsRunning
+      ? hasPendingRuntimeChanges
+        ? $"{runtimeStatus.ProfileName ?? "Unnamed profile"} | restart required"
+        : runtimeStatus.ProfileName ?? "Unnamed profile"
+      : $"{profiles.Count} stored profile(s)";
+
+    ArtNetStateText.Text = runtimeStatus.IsRunning ? "Listening" : "Idle";
+    ArtNetPacketsText.Text = runtimeStatus.IsRunning
+      ? $"{runtimeStatus.BindAddress ?? "0.0.0.0"}:{runtimeStatus.Port} | {runtimeStatus.ArtNet.PacketsPerSecond:F1}/s | universes {FormatUniverses(runtimeStatus.ArtNet.ActiveUniverses)}"
+      : "UDP input stopped";
+
+    int connectedSessions = runtimeStatus.HueOutput.Sessions.Count(x => x.IsConnected);
+    HueStateText.Text = runtimeStatus.HueOutput.IsRunning
+      ? $"{connectedSessions}/{runtimeStatus.HueOutput.Sessions.Count} online"
+      : "Offline";
+    HueSessionsText.Text = runtimeStatus.HueOutput.Sessions.Count == 0
+      ? "No active Hue sessions"
+      : string.Join(", ", runtimeStatus.HueOutput.Sessions.Select(x => x.Name));
+
+    var editorValidation = currentProfile == null
+      ? null
+      : ShowProfileValidator.Validate(BuildProfileFromEditor());
+    bool isValid = validationErrors.Count == 0 && (editorValidation?.IsValid ?? profiles.Any());
+    ValidationStateText.Text = isValid ? "Valid" : "Invalid";
+    ValidationDetailsText.Text = validationErrors.Count > 0
+      ? validationErrors[0]
+      : editorValidation != null
+        ? editorValidation.IsValid
+          ? $"Universes {FormatUniverses(editorValidation.ActiveUniverses)}"
+          : editorValidation.Errors.FirstOrDefault() ?? "Profile has validation errors"
+        : "Create or load a profile";
+
+    BridgeSetupStatusText.Text = currentPairingResult != null
+      ? $"Paired {currentPairingResult.BridgeName} for hub {(currentPairingRowIndex ?? 0) + 1}"
+      : DiscoveredBridgeComboBox.SelectedItem is HueBridgeCandidate bridge
+        ? $"Selected {bridge.DisplayName}"
+        : "No bridge selected";
+  }
+
+  private bool MarkPendingRuntimeChangesIfRunning()
+  {
+    if (!showRuntime.GetStatus().IsRunning)
+      return false;
+
+    hasPendingRuntimeChanges = true;
+    return true;
+  }
+
+  private static string FormatUniverses(IReadOnlyCollection<int> universes)
+  {
+    return universes.Count == 0 ? "none" : string.Join(", ", universes);
   }
 
   private async Task WithRepositoryAsync(Func<IShowProfileRepository, Task> action)
