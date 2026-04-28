@@ -25,11 +25,7 @@ public partial class App : Application
     host = Host.CreateDefaultBuilder()
       .ConfigureServices(services =>
       {
-        string dataDirectory = Path.Combine(
-          Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-          "HueArtNet");
-        Directory.CreateDirectory(dataDirectory);
-        string dbPath = Path.Combine(dataDirectory, "hue-artnet.db");
+        string dbPath = Path.Combine(AppPaths.DataDirectory, "hue-artnet.db");
 
         services.AddDbContext<HueArtNetDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
         services.AddSingleton<ICredentialProtector, DpapiCredentialProtector>();
@@ -59,13 +55,8 @@ public partial class App : Application
   {
     try
     {
-      string dataDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "HueArtNet");
-      Directory.CreateDirectory(dataDirectory);
-      string logPath = Path.Combine(dataDirectory, "crash.log");
       File.AppendAllText(
-        logPath,
+        AppPaths.CrashLogPath,
         $"{DateTimeOffset.Now:O} {category}{Environment.NewLine}{exception}{Environment.NewLine}{Environment.NewLine}");
     }
     catch

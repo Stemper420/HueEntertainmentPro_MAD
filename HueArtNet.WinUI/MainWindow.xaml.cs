@@ -1,11 +1,13 @@
-using System.Globalization;
 using HueArtNet.Core.Profiles;
 using HueArtNet.Hue.Runtime;
 using HueArtNet.Hue.Setup;
 using HueArtNet.Persistence;
+using HueArtNet.WinUI.Presentation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using System.Globalization;
 
 namespace HueArtNet.WinUI;
 
@@ -30,13 +32,14 @@ public sealed partial class MainWindow : Window
     this.showRuntime = showRuntime;
     this.bridgeSetupService = bridgeSetupService;
     InitializeComponent();
+    ApplyTheme(ElementTheme.Dark);
     Activated += MainWindow_Activated;
   }
 
   private async void NewTemplate_Click(object sender, RoutedEventArgs e)
   {
     ClearPairingState();
-    currentProfile = CreateProfileTemplate();
+    currentProfile = ProfileEditorMapper.CreateTemplate();
     ApplyProfileToEditor(currentProfile);
     await RefreshStatusAsync("Created a new unsaved 4-hub template.");
   }
@@ -176,7 +179,7 @@ public sealed partial class MainWindow : Window
     }
     catch (Exception ex)
     {
-      currentProfile = CreateProfileTemplate();
+      currentProfile = ProfileEditorMapper.CreateTemplate();
       ApplyProfileToEditor(currentProfile);
       await RefreshStatusAsync($"Profile load failed: {ex.Message}");
     }
@@ -184,7 +187,7 @@ public sealed partial class MainWindow : Window
 
   private async Task LoadEditorAsync(string? message = null)
   {
-    currentProfile = (await WithRepositoryAsync(repository => repository.GetAllAsync(CancellationToken.None))).FirstOrDefault() ?? CreateProfileTemplate();
+    currentProfile = (await WithRepositoryAsync(repository => repository.GetAllAsync(CancellationToken.None))).FirstOrDefault() ?? ProfileEditorMapper.CreateTemplate();
     ApplyProfileToEditor(currentProfile);
     await RefreshStatusAsync(message);
   }
@@ -212,87 +215,33 @@ public sealed partial class MainWindow : Window
     var profiles = await WithRepositoryAsync(repository => repository.GetAllAsync(CancellationToken.None));
     var runtimeStatus = showRuntime.GetStatus();
     var validationErrorsList = validationErrors?.ToList() ?? new List<string>();
-    var lines = new List<string>();
+    var editorProfile = currentProfile == null ? null : BuildProfileFromEditor();
+    var snapshot = DashboardStatusComposer.Compose(
+      profiles,
+      runtimeStatus,
+      editorProfile,
+      validationErrorsList,
+      message,
+      currentPairingResult?.BridgeName,
+      currentPairingRowIndex,
+      (DiscoveredBridgeComboBox.SelectedItem as HueBridgeCandidate)?.DisplayName,
+      hasPendingRuntimeChanges);
 
-    if (!string.IsNullOrWhiteSpace(message))
-      lines.Add(message);
-
-    foreach (var error in validationErrorsList)
-      lines.Add($"- {error}");
-
-    lines.Add($"Stored profiles: {profiles.Count}");
-    foreach (var profile in profiles)
-    {
-      var validation = ShowProfileValidator.Validate(profile);
-      lines.Add($"- {profile.Name}: {(validation.IsValid ? "valid" : "invalid")} / universes {string.Join(", ", validation.ActiveUniverses)}");
-      foreach (var error in validation.Errors)
-        lines.Add($"  {error}");
-    }
-
-    lines.Add($"Runtime running: {runtimeStatus.IsRunning}");
-    if (runtimeStatus.IsRunning)
-    {
-      lines.Add($"Profile: {runtimeStatus.ProfileName}");
-      lines.Add($"Art-Net: {runtimeStatus.BindAddress ?? "0.0.0.0"}:{runtimeStatus.Port} / universes {string.Join(", ", runtimeStatus.ArtNet.ActiveUniverses)}");
-      lines.Add($"Packets: {runtimeStatus.ArtNet.AcceptedPackets} accepted, {runtimeStatus.ArtNet.IgnoredPackets} ignored, {runtimeStatus.ArtNet.PacketsPerSecond:F1}/s");
-      lines.Add($"Timeout: {(runtimeStatus.IsTimedOut ? "yes" : "no")}");
-      if (!string.IsNullOrWhiteSpace(runtimeStatus.LastError))
-        lines.Add($"Runtime error: {runtimeStatus.LastError}");
-    }
-
-    lines.Add($"Hue output running: {runtimeStatus.HueOutput.IsRunning}");
-    foreach (var session in runtimeStatus.HueOutput.Sessions)
-      lines.Add($"- {session.Name} ({session.BridgeIp}): {(session.IsConnected ? "connected" : "offline")} {session.LastError}");
-
-    UpdateStatusCards(profiles, runtimeStatus, validationErrorsList);
-    StatusText.Text = string.Join(Environment.NewLine, lines);
+    ApplyDashboardStatus(snapshot);
   }
 
-  private void UpdateStatusCards(
-    IReadOnlyList<ShowProfile> profiles,
-    ArtNetShowRuntimeStatus runtimeStatus,
-    IReadOnlyList<string> validationErrors)
+  private void ApplyDashboardStatus(DashboardStatusSnapshot snapshot)
   {
-    RuntimeStateText.Text = runtimeStatus.IsRunning
-      ? runtimeStatus.IsTimedOut ? "Timed out" : "Running"
-      : "Stopped";
-    RuntimeProfileText.Text = runtimeStatus.IsRunning
-      ? hasPendingRuntimeChanges
-        ? $"{runtimeStatus.ProfileName ?? "Unnamed profile"} | restart required"
-        : runtimeStatus.ProfileName ?? "Unnamed profile"
-      : $"{profiles.Count} stored profile(s)";
-
-    ArtNetStateText.Text = runtimeStatus.IsRunning ? "Listening" : "Idle";
-    ArtNetPacketsText.Text = runtimeStatus.IsRunning
-      ? $"{runtimeStatus.BindAddress ?? "0.0.0.0"}:{runtimeStatus.Port} | {runtimeStatus.ArtNet.PacketsPerSecond:F1}/s | universes {FormatUniverses(runtimeStatus.ArtNet.ActiveUniverses)}"
-      : "UDP input stopped";
-
-    int connectedSessions = runtimeStatus.HueOutput.Sessions.Count(x => x.IsConnected);
-    HueStateText.Text = runtimeStatus.HueOutput.IsRunning
-      ? $"{connectedSessions}/{runtimeStatus.HueOutput.Sessions.Count} online"
-      : "Offline";
-    HueSessionsText.Text = runtimeStatus.HueOutput.Sessions.Count == 0
-      ? "No active Hue sessions"
-      : string.Join(", ", runtimeStatus.HueOutput.Sessions.Select(x => x.Name));
-
-    var editorValidation = currentProfile == null
-      ? null
-      : ShowProfileValidator.Validate(BuildProfileFromEditor());
-    bool isValid = validationErrors.Count == 0 && (editorValidation?.IsValid ?? profiles.Any());
-    ValidationStateText.Text = isValid ? "Valid" : "Invalid";
-    ValidationDetailsText.Text = validationErrors.Count > 0
-      ? validationErrors[0]
-      : editorValidation != null
-        ? editorValidation.IsValid
-          ? $"Universes {FormatUniverses(editorValidation.ActiveUniverses)}"
-          : editorValidation.Errors.FirstOrDefault() ?? "Profile has validation errors"
-        : "Create or load a profile";
-
-    BridgeSetupStatusText.Text = currentPairingResult != null
-      ? $"Paired {currentPairingResult.BridgeName} for hub {(currentPairingRowIndex ?? 0) + 1}"
-      : DiscoveredBridgeComboBox.SelectedItem is HueBridgeCandidate bridge
-        ? $"Selected {bridge.DisplayName}"
-        : "No bridge selected";
+    RuntimeStateText.Text = snapshot.RuntimeState;
+    RuntimeProfileText.Text = snapshot.RuntimeProfile;
+    ArtNetStateText.Text = snapshot.ArtNetState;
+    ArtNetPacketsText.Text = snapshot.ArtNetPackets;
+    HueStateText.Text = snapshot.HueState;
+    HueSessionsText.Text = snapshot.HueSessions;
+    ValidationStateText.Text = snapshot.ValidationState;
+    ValidationDetailsText.Text = snapshot.ValidationDetails;
+    BridgeSetupStatusText.Text = snapshot.BridgeSetupStatus;
+    StatusText.Text = snapshot.ActivityLog;
   }
 
   private bool MarkPendingRuntimeChangesIfRunning()
@@ -302,11 +251,6 @@ public sealed partial class MainWindow : Window
 
     hasPendingRuntimeChanges = true;
     return true;
-  }
-
-  private static string FormatUniverses(IReadOnlyCollection<int> universes)
-  {
-    return universes.Count == 0 ? "none" : string.Join(", ", universes);
   }
 
   private async Task WithRepositoryAsync(Func<IShowProfileRepository, Task> action)
@@ -325,83 +269,65 @@ public sealed partial class MainWindow : Window
 
   private ShowProfile BuildProfileFromEditor()
   {
-    var source = currentProfile ?? CreateProfileTemplate();
-    return new ShowProfile
-    {
-      Id = source.Id,
-      Name = ProfileNameTextBox.Text.Trim(),
-      IsDefault = true,
-      ArtNetInput = new ArtNetInputConfig
-      {
-        BindAddress = NormalizeBindAddress(BindAddressTextBox.Text),
-        Port = ParseInt(ArtNetPortTextBox, 6454)
-      },
-      Output = new OutputConfig
-      {
-        FramesPerSecond = ParseInt(OutputFpsTextBox, 20),
-        BrightnessLimit = source.Output.BrightnessLimit
-      },
-      FailSafe = new FailSafeConfig
-      {
-        Mode = ParseFailSafeMode(TimeoutModeComboBox),
-        Timeout = TimeSpan.FromSeconds(Math.Max(ParseDouble(TimeoutSecondsTextBox, 2), 0.1))
-      },
-      HubMappings = GetHubEditors()
-        .Select((editor, index) => BuildMapping(source.HubMappings.ElementAtOrDefault(index), editor, index))
-        .ToList()
-    };
+    return ProfileEditorMapper.BuildProfile(currentProfile, CaptureEditorState());
   }
 
-  private static HubMapping BuildMapping(HubMapping? source, HubEditorControls editor, int index)
+  private ProfileEditorState CaptureEditorState()
   {
-    return new HubMapping
-    {
-      Id = source?.Id ?? Guid.NewGuid(),
-      Name = string.IsNullOrWhiteSpace(editor.Name.Text) ? $"Hue hub {index + 1}" : editor.Name.Text.Trim(),
-      BridgeId = source == null || source.BridgeId == Guid.Empty ? Guid.NewGuid() : source.BridgeId,
-      HueBridgeId = source?.HueBridgeId ?? string.Empty,
-      BridgeIp = editor.BridgeIp.Text.Trim(),
-      ApplicationKey = editor.ApplicationKey.Password.Trim(),
-      EntertainmentKey = editor.EntertainmentKey.Password.Trim(),
-      EntertainmentGroupId = Guid.TryParse(editor.EntertainmentGroupId.Text.Trim(), out var groupId) ? groupId : Guid.Empty,
-      Universe = ParseInt(editor.Universe, index),
-      StartChannel = ParseInt(editor.StartChannel, 1),
-      FixtureMode = ParseFixtureMode(editor.FixtureMode),
-      LightOrder = ParseLightOrder(editor.LightOrder.Text),
-      Enabled = editor.Enabled.IsChecked == true,
-      Required = source?.Required ?? false
-    };
+    return new ProfileEditorState(
+      Name: ProfileNameTextBox.Text,
+      BindAddress: BindAddressTextBox.Text,
+      ArtNetPort: ArtNetPortTextBox.Text,
+      OutputFps: OutputFpsTextBox.Text,
+      TimeoutSeconds: TimeoutSecondsTextBox.Text,
+      TimeoutModeTag: GetSelectedTag(TimeoutModeComboBox) ?? string.Empty,
+      Hubs: GetHubEditors().Select(CaptureHubState).ToList());
+  }
+
+  private static HubEditorState CaptureHubState(HubEditorControls editor)
+  {
+    return new HubEditorState(
+      Enabled: editor.Enabled.IsChecked == true,
+      Name: editor.Name.Text,
+      BridgeIp: editor.BridgeIp.Text,
+      ApplicationKey: editor.ApplicationKey.Password,
+      EntertainmentKey: editor.EntertainmentKey.Password,
+      EntertainmentGroupId: editor.EntertainmentGroupId.Text,
+      Universe: editor.Universe.Text,
+      StartChannel: editor.StartChannel.Text,
+      FixtureModeTag: GetSelectedTag(editor.FixtureMode) ?? string.Empty,
+      LightOrder: editor.LightOrder.Text);
   }
 
   private void ApplyProfileToEditor(ShowProfile profile)
   {
-    ProfileNameTextBox.Text = profile.Name;
-    BindAddressTextBox.Text = profile.ArtNetInput.BindAddress ?? string.Empty;
-    ArtNetPortTextBox.Text = profile.ArtNetInput.Port.ToString(CultureInfo.InvariantCulture);
-    OutputFpsTextBox.Text = profile.Output.FramesPerSecond.ToString(CultureInfo.InvariantCulture);
-    TimeoutSecondsTextBox.Text = profile.FailSafe.Timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture);
-    SelectComboTag(TimeoutModeComboBox, profile.FailSafe.Mode.ToString());
+    var state = ProfileEditorMapper.FromProfile(profile);
+    ProfileNameTextBox.Text = state.Name;
+    BindAddressTextBox.Text = state.BindAddress;
+    ArtNetPortTextBox.Text = state.ArtNetPort;
+    OutputFpsTextBox.Text = state.OutputFps;
+    TimeoutSecondsTextBox.Text = state.TimeoutSeconds;
+    SelectComboTag(TimeoutModeComboBox, state.TimeoutModeTag);
 
     var editors = GetHubEditors().ToList();
     for (int index = 0; index < editors.Count; index++)
     {
-      var mapping = profile.HubMappings.ElementAtOrDefault(index) ?? CreateTemplateMapping(index);
-      ApplyMappingToEditor(mapping, editors[index]);
+      ApplyHubStateToEditor(state.Hubs[index], editors[index]);
     }
   }
 
-  private static void ApplyMappingToEditor(HubMapping mapping, HubEditorControls editor)
+  private static void ApplyHubStateToEditor(HubEditorState state, HubEditorControls editor)
   {
-    editor.Enabled.IsChecked = mapping.Enabled;
-    editor.Name.Text = mapping.Name;
-    editor.BridgeIp.Text = mapping.BridgeIp;
-    editor.ApplicationKey.Password = mapping.ApplicationKey;
-    editor.EntertainmentKey.Password = mapping.EntertainmentKey;
-    editor.EntertainmentGroupId.Text = mapping.EntertainmentGroupId == Guid.Empty ? string.Empty : mapping.EntertainmentGroupId.ToString();
-    editor.Universe.Text = mapping.Universe.ToString(CultureInfo.InvariantCulture);
-    editor.StartChannel.Text = mapping.StartChannel.ToString(CultureInfo.InvariantCulture);
-    SelectComboTag(editor.FixtureMode, mapping.FixtureMode.ToString());
-    editor.LightOrder.Text = string.Join(",", mapping.LightOrder);
+    editor.Enabled.IsChecked = state.Enabled;
+    editor.Name.Text = state.Name;
+    editor.BridgeIp.Text = state.BridgeIp;
+    editor.ApplicationKey.Password = state.ApplicationKey;
+    editor.EntertainmentKey.Password = state.EntertainmentKey;
+    editor.EntertainmentGroupId.Text = state.EntertainmentGroupId;
+    editor.Universe.Text = state.Universe;
+    editor.StartChannel.Text = state.StartChannel;
+    SelectComboTag(editor.FixtureMode, state.FixtureModeTag);
+    editor.LightOrder.Text = state.LightOrder;
   }
 
   private void ClearPairingState()
@@ -474,88 +400,42 @@ public sealed partial class MainWindow : Window
     return Math.Clamp(ParseSelectedHubRow(), 0, GetHubEditors().Count - 1);
   }
 
-  private static ShowProfile CreateProfileTemplate()
+  private void ThemeToggleSwitch_Toggled(object sender, RoutedEventArgs e)
   {
-    return new ShowProfile
-    {
-      Name = "Four hub Art-Net profile",
-      IsDefault = true,
-      ArtNetInput = new ArtNetInputConfig
-      {
-        BindAddress = "0.0.0.0",
-        Port = 6454
-      },
-      Output = new OutputConfig
-      {
-        FramesPerSecond = 20,
-        BrightnessLimit = 1
-      },
-      FailSafe = new FailSafeConfig
-      {
-        Mode = FailSafeMode.HoldLastFrame,
-        Timeout = TimeSpan.FromSeconds(2)
-      },
-      HubMappings = Enumerable.Range(0, 4).Select(CreateTemplateMapping).ToList()
-    };
+    ApplyTheme(ThemeToggleSwitch.IsOn ? ElementTheme.Dark : ElementTheme.Light);
   }
 
-  private static HubMapping CreateTemplateMapping(int index)
+  private void ApplyTheme(ElementTheme theme)
   {
-    return new HubMapping
-    {
-      Name = $"Hue hub {index + 1}",
-      BridgeId = Guid.NewGuid(),
-      HueBridgeId = string.Empty,
-      BridgeIp = $"192.168.1.{20 + index}",
-      Universe = index,
-      StartChannel = 1,
-      FixtureMode = FixtureMode.Rgb3,
-      LightOrder = Enumerable.Range(1, 10).ToList(),
-      Enabled = true
-    };
+    RootShell.RequestedTheme = theme;
+    var palette = theme == ElementTheme.Dark ? AppThemePalettes.Dark : AppThemePalettes.Light;
+
+    RootShell.Background = new SolidColorBrush(ToColor(palette.Background));
+    SetBrush("AppBackgroundBrush", palette.Background);
+    SetBrush("SurfaceBrush", palette.Surface);
+    SetBrush("SurfaceAltBrush", palette.SurfaceAlt);
+    SetBrush("BorderBrush", palette.Border);
+    SetBrush("TextPrimaryBrush", palette.TextPrimary);
+    SetBrush("TextSecondaryBrush", palette.TextSecondary);
+    SetBrush("AccentBrush", palette.Accent);
+    SetBrush("SuccessBrush", palette.Success);
+    SetBrush("WarningBrush", palette.Warning);
   }
 
-  private static int ParseInt(TextBox textBox, int fallback)
+  private void SetBrush(string key, string color)
   {
-    return int.TryParse(textBox.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int value)
-      ? value
-      : fallback;
+    if (RootShell.Resources[key] is SolidColorBrush brush)
+      brush.Color = ToColor(color);
   }
 
-  private static double ParseDouble(TextBox textBox, double fallback)
+  private static Windows.UI.Color ToColor(string value)
   {
-    return double.TryParse(textBox.Text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value)
-      ? value
-      : fallback;
-  }
+    var hex = value.TrimStart('#');
+    byte r = Convert.ToByte(hex[..2], 16);
+    byte g = Convert.ToByte(hex.Substring(2, 2), 16);
+    byte b = Convert.ToByte(hex.Substring(4, 2), 16);
 
-  private static List<int> ParseLightOrder(string value)
-  {
-    var parsed = value
-      .Split(new[] { ',', ';', ' ', '\r', '\n', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-      .Select(item => int.TryParse(item, NumberStyles.Integer, CultureInfo.InvariantCulture, out int lightId) ? lightId : 0)
-      .Where(lightId => lightId > 0)
-      .Distinct()
-      .ToList();
-
-    return parsed.Count > 0 ? parsed : Enumerable.Range(1, 10).ToList();
-  }
-
-  private static string? NormalizeBindAddress(string value)
-  {
-    return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-  }
-
-  private static FixtureMode ParseFixtureMode(ComboBox comboBox)
-  {
-    var tag = GetSelectedTag(comboBox);
-    return Enum.TryParse<FixtureMode>(tag, out var mode) ? mode : FixtureMode.Rgb3;
-  }
-
-  private static FailSafeMode ParseFailSafeMode(ComboBox comboBox)
-  {
-    var tag = GetSelectedTag(comboBox);
-    return Enum.TryParse<FailSafeMode>(tag, out var mode) ? mode : FailSafeMode.HoldLastFrame;
+    return Windows.UI.Color.FromArgb(255, r, g, b);
   }
 
   private static string? GetSelectedTag(ComboBox comboBox)

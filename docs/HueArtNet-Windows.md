@@ -87,6 +87,36 @@ Output:
 artifacts\msix\x64\HueArtNet.WinUI_1.0.0.0_x64_Test\HueArtNet.WinUI_1.0.0.0_x64.msix
 ```
 
+## Portable ZIP
+
+Use this helper when you want a portable Windows folder plus a zip archive:
+
+```powershell
+.\scripts\Publish-PortableZip.ps1
+```
+
+The script publishes `HueArtNet.WinUI` as:
+
+- self-contained
+- `win-x64`
+- single-file
+- `WindowsPackageType=None`
+- `WindowsAppSDKSelfContained=true`
+
+Output:
+
+```text
+artifacts\portable\win-x64\HueArtNet.WinUI.exe
+artifacts\HueArtNet.WinUI_portable_win-x64.zip
+```
+
+The published folder includes `README_RUN.txt` with launch notes, and the script prints the ZIP SHA256 after packaging.
+The portable folder contains a `HueArtNet.portable` marker so the app stores its
+database and logs in the local `data` folder next to `HueArtNet.WinUI.exe`.
+Do not rename `HueArtNet.WinUI.exe`; WinUI resource loading expects that file
+name. Hue pairing secrets are DPAPI-protected for the current Windows user, so
+pair bridges again after moving the archive to another machine or Windows user.
+
 ## Dev-Signed MSIX
 
 Create a local dev certificate. The password is read from `HUEARTNET_MSIX_CERT_PASSWORD` and is not committed.
