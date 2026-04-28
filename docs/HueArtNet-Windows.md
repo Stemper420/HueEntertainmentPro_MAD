@@ -124,7 +124,17 @@ Release packages must be signed with a stable code-signing certificate whose sub
 Publisher="CN=HueArtNet"
 ```
 
-Set the release certificate thumbprint as a user environment variable:
+Import a CA-issued PFX and persist its thumbprint for release signing:
+
+```powershell
+.\scripts\Import-ReleaseMsixCertificate.ps1 -PfxPath C:\certs\HueArtNet.Release.pfx
+```
+
+The import script prompts for the PFX password as a secure string and sets
+`HUEARTNET_RELEASE_CERT_THUMBPRINT` for the current user by default.
+
+If the certificate is already installed, set the release certificate thumbprint
+as a user environment variable:
 
 ```powershell
 [Environment]::SetEnvironmentVariable("HUEARTNET_RELEASE_CERT_THUMBPRINT", "<thumbprint>", "User")
@@ -155,6 +165,7 @@ The release script validates:
 To use a machine-level certificate:
 
 ```powershell
+.\scripts\Import-ReleaseMsixCertificate.ps1 -PfxPath C:\certs\HueArtNet.Release.pfx -CertificateStore LocalMachine -EnvironmentTarget Machine
 .\scripts\Publish-ReleaseMsix.ps1 -CertificateStore LocalMachine
 ```
 
