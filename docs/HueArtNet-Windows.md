@@ -116,6 +116,48 @@ Notes:
 - A self-signed cert is for development only. Release distribution should use a stable release certificate or a trusted signing service.
 - `Get-AuthenticodeSignature` can still report an untrusted root for a self-signed cert unless the root is trusted. The publish script verifies that the selected signing certificate is trusted in `CurrentUser\TrustedPeople`.
 
+## Release-Signed MSIX
+
+Release packages must be signed with a stable code-signing certificate whose subject exactly matches `Package.appxmanifest`:
+
+```xml
+Publisher="CN=HueArtNet"
+```
+
+Set the release certificate thumbprint as a user environment variable:
+
+```powershell
+[Environment]::SetEnvironmentVariable("HUEARTNET_RELEASE_CERT_THUMBPRINT", "<thumbprint>", "User")
+```
+
+Publish with:
+
+```powershell
+.\scripts\Publish-ReleaseMsix.ps1
+```
+
+Output:
+
+```text
+artifacts\msix\x64-release\HueArtNet.WinUI_1.0.0.0_x64_Test\HueArtNet.WinUI_1.0.0.0_x64.msix
+```
+
+The release script validates:
+
+- the certificate exists in `Cert:\CurrentUser\My` by default;
+- the certificate has a private key;
+- the certificate is not expired;
+- the certificate has Code Signing enhanced key usage;
+- the certificate subject matches the package publisher;
+- the certificate is not self-signed unless `-AllowSelfSigned` is explicitly passed;
+- the certificate chain validates unless `-SkipChainValidation` is explicitly passed.
+
+To use a machine-level certificate:
+
+```powershell
+.\scripts\Publish-ReleaseMsix.ps1 -CertificateStore LocalMachine
+```
+
 ## Verification Checklist
 
 Before shipping a build:
@@ -125,6 +167,7 @@ dotnet test .\HueEntertainmentPro.sln -v minimal
 dotnet build .\HueEntertainmentPro.sln -v minimal
 dotnet msbuild .\HueArtNet.WinUI\HueArtNet.WinUI.csproj /restore /p:PublishProfile=Msix-x64
 .\scripts\Publish-DevMsix.ps1
+.\scripts\Publish-ReleaseMsix.ps1
 ```
 
 Manual verification still requires real Hue hardware and external Art-Net software.
