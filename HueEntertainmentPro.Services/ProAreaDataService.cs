@@ -3,8 +3,10 @@ using HueEntertainmentPro.Database.Models;
 using HueEntertainmentPro.Services.Extensions;
 using HueEntertainmentPro.Shared.Interfaces;
 using HueEntertainmentPro.Shared.Models.Requests;
+using HueLightDJ.Services.Interfaces.Models;
 using Microsoft.EntityFrameworkCore;
 using ProtoBuf.Grpc;
+using System.Text.Json;
 
 namespace HueEntertainmentPro.Services
 {
@@ -28,6 +30,14 @@ namespace HueEntertainmentPro.Services
       // Find the ProArea for this group (assuming GroupId is unique per ProAreaBridgeGroup)
 
 
+      var usedUniverses = await dbContext.ProAreaGroups
+        .Where(pg => pg.ProAreaId == proArea.Id)
+        .Select(pg => pg.ArtNetUniverse)
+        .ToListAsync();
+
+      int nextUniverse = Enumerable.Range(0, 32768)
+        .First(universe => !usedUniverses.Contains(universe));
+
       // Add new bridge group connection
       var newGroup = new ProAreaBridgeGroup
       {
@@ -36,6 +46,9 @@ namespace HueEntertainmentPro.Services
         BridgeId = bridge.Id,
         GroupId = req.GroupId.Value,
         Name = req.Name,
+        ArtNetUniverse = nextUniverse,
+        ArtNetStartChannel = 1,
+        ArtNetFixtureMode = HueLightDJ.Services.Interfaces.Models.ArtNetFixtureMode.Rgb3.ToString(),
         CreatedDate = DateTime.UtcNow
       };
       dbContext.ProAreaGroups.Add(newGroup);
@@ -91,6 +104,129 @@ namespace HueEntertainmentPro.Services
       return area;
     }
 
+    public async Task<HueEntertainmentPro.Shared.Models.ProArea> UpdateProAreaArtNet(UpdateProAreaArtNetRequest req, CallContext context = default)
+    {
+      var existing = await dbContext.ProAreas
+        .Include(x => x.ProAreaBridgeGroups)
+        .FirstOrDefaultAsync(x => x.Id == req.ProAreaId);
+
+      if (existing == null)
+        throw new InvalidOperationException("Area not found.");
+
+      if (req.ArtNetEnabled && existing.ProAreaBridgeGroups?.Any() != true)
+        throw new ArgumentException("At least one entertainment group is required before Art-Net can be enabled.");
+
+      existing.ArtNetEnabled = req.ArtNetEnabled;
+      existing.ArtNetBindAddress = string.IsNullOrWhiteSpace(req.ArtNetBindAddress) ? null : req.ArtNetBindAddress.Trim();
+      existing.ArtNetTimeoutMode = req.ArtNetTimeoutMode.ToString();
+
+      var pendingMappings = new List<PendingArtNetMapping>();
+
+      foreach (var connectionSettings in req.Connections)
+      {
+        var group = existing.ProAreaBridgeGroups?.FirstOrDefault(x => x.Id == connectionSettings.BridgeGroupConnectionId);
+        if (group == null)
+          continue;
+
+        var lightOrder = connectionSettings.ArtNetLightOrder.Distinct().ToList();
+        if (req.ArtNetEnabled && lightOrder.Count == 0)
+          throw new ArgumentException($"{group.Name ?? group.GroupId.ToString()}: At least one Hue channel is required before Art-Net can be enabled.");
+
+        string? error = ValidateArtNetMapping(
+          connectionSettings.ArtNetUniverse,
+          connectionSettings.ArtNetStartChannel,
+          connectionSettings.ArtNetFixtureMode,
+          Math.Max(lightOrder.Count, 1));
+        if (error != null)
+          throw new ArgumentException($"{group.Name ?? group.GroupId.ToString()}: {error}");
+
+        group.ArtNetUniverse = connectionSettings.ArtNetUniverse;
+        group.ArtNetStartChannel = connectionSettings.ArtNetStartChannel;
+        group.ArtNetFixtureMode = connectionSettings.ArtNetFixtureMode.ToString();
+        group.ArtNetLightOrderJson = JsonSerializer.Serialize(lightOrder);
+
+        pendingMappings.Add(new PendingArtNetMapping(
+          Name: group.Name ?? group.GroupId.ToString(),
+          Universe: connectionSettings.ArtNetUniverse,
+          StartChannel: connectionSettings.ArtNetStartChannel,
+          FixtureMode: connectionSettings.ArtNetFixtureMode,
+          LightCount: Math.Max(lightOrder.Count, 1)));
+      }
+
+      string? overlapError = ValidateArtNetOverlaps(pendingMappings);
+      if (overlapError != null)
+        throw new ArgumentException(overlapError);
+
+      await dbContext.SaveChangesAsync();
+
+      var area = await GetProArea(new GuidRequest { Id = req.ProAreaId }, context);
+      if (area == null)
+        throw new NullReferenceException($"Area is null. Id: {req.ProAreaId}");
+
+      return area;
+    }
+
+    private static string? ValidateArtNetMapping(int universe, int startChannel, ArtNetFixtureMode fixtureMode, int lightCount)
+    {
+      if (universe < 0 || universe > 32767)
+        return "Universe must be between 0 and 32767.";
+
+      if (startChannel < 1 || startChannel > 512)
+        return "Start channel must be between 1 and 512.";
+
+      int channelWidth = fixtureMode switch
+      {
+        ArtNetFixtureMode.Rgb3 => 3,
+        ArtNetFixtureMode.Rgbww5 => 5,
+        ArtNetFixtureMode.DimmerRgbww6 => 6,
+        _ => 3
+      };
+
+      int lastChannel = startChannel + (channelWidth * Math.Max(lightCount, 1)) - 1;
+      return lastChannel > 512 ? "DMX block exceeds channel 512." : null;
+    }
+
+    private static string? ValidateArtNetOverlaps(IReadOnlyCollection<PendingArtNetMapping> mappings)
+    {
+      var ranges = mappings
+        .Select(mapping => new
+        {
+          mapping.Name,
+          mapping.Universe,
+          First = mapping.StartChannel,
+          Last = mapping.StartChannel + (GetFixtureWidth(mapping.FixtureMode) * Math.Max(mapping.LightCount, 1)) - 1
+        })
+        .Where(x => x.Last <= 512)
+        .GroupBy(x => x.Universe);
+
+      foreach (var universe in ranges)
+      {
+        var ordered = universe.OrderBy(x => x.First).ToList();
+        for (int index = 1; index < ordered.Count; index++)
+        {
+          var previous = ordered[index - 1];
+          var current = ordered[index];
+          if (current.First <= previous.Last)
+            return $"{current.Name}: DMX block {current.First}-{current.Last} overlaps {previous.Name} on universe {universe.Key}.";
+        }
+      }
+
+      return null;
+    }
+
+    private static int GetFixtureWidth(ArtNetFixtureMode fixtureMode)
+    {
+      return fixtureMode switch
+      {
+        ArtNetFixtureMode.Rgb3 => 3,
+        ArtNetFixtureMode.Rgbww5 => 5,
+        ArtNetFixtureMode.DimmerRgbww6 => 6,
+        _ => 3
+      };
+    }
+
+    private sealed record PendingArtNetMapping(string Name, int Universe, int StartChannel, ArtNetFixtureMode FixtureMode, int LightCount);
+
     public async Task<HueEntertainmentPro.Shared.Models.ProArea> CreateProArea(CreateProAreaRequest req, CallContext context = default)
     {
       var newArea = new Database.Models.ProArea
@@ -120,6 +256,7 @@ namespace HueEntertainmentPro.Services
         {
           Id = demo1Id,
           Name = "Demo Area",
+          ArtNetEnabled = false,
           Connections = new List<HueEntertainmentPro.Shared.Models.BridgeGroupConnection>
            {
               new Shared.Models.BridgeGroupConnection
@@ -154,6 +291,7 @@ namespace HueEntertainmentPro.Services
         {
           Id = demo1Id,
           Name = "Q42 Star Demo",
+          ArtNetEnabled = false,
           Connections = new List<HueEntertainmentPro.Shared.Models.BridgeGroupConnection>
            {
               new Shared.Models.BridgeGroupConnection

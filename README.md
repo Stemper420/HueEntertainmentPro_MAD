@@ -31,6 +31,7 @@ DEMO:  [https://huelightdj.azurewebsites.net/](https://huelightdj.azurewebsites.
 ## Features
 - Combine multiple entertainment areas into one
 - Control multiple entertainment areas from multiple bridges at the same time
+- Receive Art-Net DMX and drive Hue Entertainment lights from external lighting software
 - Contains build in effects
 - BPM input to specify speed of effects
 - Preview window, to see the result of the effects
@@ -61,6 +62,12 @@ DEMO:  [https://huelightdj.azurewebsites.net/](https://huelightdj.azurewebsites.
 - Make sure to have [.Net 9.0](https://dotnet.microsoft.com/download) installed to build this project (`dotnet build`)
 - Run the HueEntertainmentPro.Server project(`cd HueEntertainmentPro\Server && dotnet run`) 
 - Follow the instructions to link your bridge or use the DEMO setup
+
+## Windows Art-Net Controller
+
+This repository also contains `HueArtNet.WinUI`, a Windows app for receiving Art-Net DMX frames and streaming them to up to four Philips Hue Entertainment hubs.
+
+See [Windows Art-Net Controller](docs/HueArtNet-Windows.md) for setup, Hue pairing, Art-Net channel mapping, and MSIX signing/publishing instructions.
 
 ## Docker
 https://hub.docker.com/r/michielpost/huelightdj/

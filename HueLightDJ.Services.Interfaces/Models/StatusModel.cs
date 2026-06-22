@@ -12,6 +12,7 @@ namespace HueLightDJ.Services.Interfaces.Models
 
     public bool ShowDisconnect { get; set; }
     public GroupConfiguration? CurrentGroup { get; set; }
+    public ArtNetStatusModel ArtNet { get; set; } = new();
 
     public List<GroupInfoViewModel> Groups { get; set; } = new();
 

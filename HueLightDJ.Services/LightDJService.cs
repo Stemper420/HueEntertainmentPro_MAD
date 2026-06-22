@@ -1,9 +1,11 @@
 using HueApi.Entertainment.Extensions;
+using HueLightDJ.Services.ArtNet;
 using HueLightDJ.Services.Interfaces;
 using HueLightDJ.Services.Interfaces.Models;
 using HueLightDJ.Services.Interfaces.Models.Requests;
 using ProtoBuf.Grpc;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -13,18 +15,31 @@ namespace HueLightDJ.Services
   {
     private readonly EffectService effectService;
     private readonly StreamingSetup streamingSetup;
+    private readonly ArtNetInputService artNetInputService;
 
-    public LightDJService(EffectService effectService, StreamingSetup streamingSetup)
+    public LightDJService(EffectService effectService, StreamingSetup streamingSetup, ArtNetInputService artNetInputService)
     {
       this.effectService = effectService;
       this.streamingSetup = streamingSetup;
+      this.artNetInputService = artNetInputService;
     }
 
-    public Task Connect(GroupConfiguration config, CallContext context = default)
+    public async Task Connect(GroupConfiguration config, CallContext context = default)
     {
       //Connect
+      await artNetInputService.StopAsync();
       effectService.StopEffects();
-      return streamingSetup.SetupAndReturnGroupAsync(config);
+      try
+      {
+        await streamingSetup.SetupAndReturnGroupAsync(config);
+        await artNetInputService.StartAsync(config);
+      }
+      catch
+      {
+        await artNetInputService.StopAsync();
+        await streamingSetup.DisconnectAsync();
+        throw;
+      }
     }
 
     public Task<StatusModel> GetStatus(CallContext context = default)
@@ -35,6 +50,7 @@ namespace HueLightDJ.Services
       vm.AutoModeHasRandomEffects = EffectService.AutoModeHasRandomEffects;
       vm.ShowDisconnect = !(StreamingSetup.CurrentConnection?.HideDisconnect ?? false);
       vm.CurrentGroup = StreamingSetup.CurrentConnection;
+      vm.ArtNet = artNetInputService.GetStatus();
 
       if (StreamingSetup.CurrentConnection != null)
       {
@@ -45,6 +61,11 @@ namespace HueLightDJ.Services
       return Task.FromResult(vm);
     }
 
+    public Task<IEnumerable<ArtNetBindAddress>> GetArtNetBindAddresses(CallContext context = default)
+    {
+      return Task.FromResult(artNetInputService.GetLocalBindAddresses());
+    }
+
     public Task<EffectsVM> GetEffects(CallContext context = default)
     {
       return Task.FromResult(EffectService.GetEffectViewModels());
@@ -52,12 +73,18 @@ namespace HueLightDJ.Services
 
     public Task StartEffect(StartEffectRequest request, CallContext context = default)
     {
+      if (artNetInputService.IsExclusiveActive)
+        return Task.CompletedTask;
+
       effectService.StartEffect(request.TypeName, request.ColorHex);
       return Task.CompletedTask;
     }
 
     public Task StartGroupEffect(StartEffectRequest request, CallContext context = default)
     {
+      if (artNetInputService.IsExclusiveActive)
+        return Task.CompletedTask;
+
       effectService.StartEffect(request.TypeName, request.ColorHex, request.GroupName, Enum.Parse<IteratorEffectMode>(request.IteratorMode!), Enum.Parse<IteratorEffectMode>(request.SecondaryIteratorMode!));
       return Task.CompletedTask;
     }
@@ -84,12 +111,18 @@ namespace HueLightDJ.Services
 
     public Task StartRandom(CallContext context = default)
     {
+      if (artNetInputService.IsExclusiveActive)
+        return Task.CompletedTask;
+
       effectService.StartRandomEffect();
       return Task.CompletedTask;
     }
 
     public Task StartAutoMode(CallContext context = default)
     {
+      if (artNetInputService.IsExclusiveActive)
+        return GetStatus();
+
       effectService.StartAutoMode();
       return GetStatus();
     }
@@ -130,15 +163,19 @@ namespace HueLightDJ.Services
     //}
     public Task Beat(CallContext context = default)
     {
+      if (artNetInputService.IsExclusiveActive)
+        return Task.CompletedTask;
+
       effectService.Beat();
       return Task.CompletedTask;
     }
 
-    public Task Disconnect(CallContext context = default)
+    public async Task Disconnect(CallContext context = default)
     {
       effectService.CancelAllEffects();
+      await artNetInputService.StopAsync();
 
-      return streamingSetup.DisconnectAsync();
+      await streamingSetup.DisconnectAsync();
     }
 
 

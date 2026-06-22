@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\HueEntertainmentPro.Database\HueEntertainmentPro.Database.csproj" />
+    <ProjectReference Include="..\HueLightDJ.Services.Interfaces\HueLightDJ.Services.Interfaces.csproj" />
     <ProjectReference Include="..\HueEntertainmentPro\Shared\HueEntertainmentPro.Shared.csproj" />
   </ItemGroup>
 

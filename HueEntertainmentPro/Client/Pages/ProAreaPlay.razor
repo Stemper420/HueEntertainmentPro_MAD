@@ -78,6 +78,24 @@
 
             <FluentGridItem xs="6" sm="3">
                 <FluentCard Style="padding: 16px; min-height: 100%;">
+                    <FluentHeader Style="margin-bottom: 12px;">Art-Net</FluentHeader>
+                    <FluentStack Orientation="Orientation.Vertical" Gap="8">
+                        <FluentLabel>Enabled: @statusModel.ArtNet.IsEnabled</FluentLabel>
+                        <FluentLabel>Listening: @statusModel.ArtNet.IsListening</FluentLabel>
+                        <FluentLabel>Bind: @(statusModel.ArtNet.BindAddress ?? "-"):@statusModel.ArtNet.Port</FluentLabel>
+                        <FluentLabel>Universes: @string.Join(", ", statusModel.ArtNet.ActiveUniverses)</FluentLabel>
+                        <FluentLabel>Packets: @statusModel.ArtNet.PacketsReceived (@statusModel.ArtNet.PacketsPerSecond.ToString("0.0")/s)</FluentLabel>
+                        <FluentLabel>Timeout: @(statusModel.ArtNet.IsTimedOut ? statusModel.ArtNet.TimeoutMode.ToString() : "No")</FluentLabel>
+                        @if (!string.IsNullOrWhiteSpace(statusModel.ArtNet.LastError))
+                        {
+                            <FluentMessageBar Intent="MessageIntent.Warning">@statusModel.ArtNet.LastError</FluentMessageBar>
+                        }
+                    </FluentStack>
+                </FluentCard>
+            </FluentGridItem>
+
+            <FluentGridItem xs="6" sm="3">
+                <FluentCard Style="padding: 16px; min-height: 100%;">
                     <FluentHeader Style="margin-bottom: 12px;">Effects</FluentHeader>
                     <FluentStack Orientation="Orientation.Vertical" Gap="12">
                         <FluentButton Appearance="Appearance.Accent" OnClick="(() => LightDJService.StartRandom())" Style="margin-bottom: 8px;">Random Effect</FluentButton>
@@ -189,13 +207,20 @@ else
             {
                 Name = proArea.Name,
                 Id = proArea.Id,
+                ArtNetEnabled = proArea.ArtNetEnabled,
+                ArtNetBindAddress = proArea.ArtNetBindAddress,
+                ArtNetTimeoutMode = proArea.ArtNetTimeoutMode,
                 Connections = proArea.Connections.Select(x => new ConnectionConfiguration
                 {
                     EntertainmentKey = x.Bridge.StreamingClientKey,
                     GroupId = x.GroupId,
                     Ip = x.Bridge.Ip,
                     Key = x.Bridge.Username,
-                    UseSimulator = useSimulator
+                    UseSimulator = useSimulator,
+                    ArtNetUniverse = x.ArtNetUniverse,
+                    ArtNetStartChannel = x.ArtNetStartChannel,
+                    ArtNetFixtureMode = x.ArtNetFixtureMode,
+                    ArtNetLightOrder = x.ArtNetLightOrder
                 }).ToList()
             };
 

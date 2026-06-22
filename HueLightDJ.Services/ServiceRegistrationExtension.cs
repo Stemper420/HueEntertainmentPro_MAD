@@ -8,6 +8,7 @@ namespace HueLightDJ.Services
     {
       services.AddSingleton<EffectService>();
       services.AddSingleton<StreamingSetup>();
+      services.AddSingleton<ArtNet.ArtNetInputService>();
     }
   }
 }

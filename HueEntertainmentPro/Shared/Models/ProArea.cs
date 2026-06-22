@@ -1,4 +1,5 @@
 using ProtoBuf;
+using HueLightDJ.Services.Interfaces.Models;
 
 namespace HueEntertainmentPro.Shared.Models
 {
@@ -7,6 +8,9 @@ namespace HueEntertainmentPro.Shared.Models
   {
     public Guid Id { get; set; }
     public required string Name { get; set; }
+    public bool ArtNetEnabled { get; set; }
+    public string? ArtNetBindAddress { get; set; }
+    public ArtNetTimeoutMode ArtNetTimeoutMode { get; set; } = ArtNetTimeoutMode.Blackout;
     public IEnumerable<BridgeGroupConnection> Connections { get; set; } = new List<BridgeGroupConnection>();
 
     // public SimpleHuePosition? LocationCenter { get; set; }

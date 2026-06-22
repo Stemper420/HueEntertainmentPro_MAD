@@ -58,6 +58,16 @@ namespace HueEntertainmentPro.Database.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
+                    b.Property<string>("ArtNetBindAddress")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("ArtNetEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ArtNetTimeoutMode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
 
@@ -76,6 +86,19 @@ namespace HueEntertainmentPro.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
+
+                    b.Property<string>("ArtNetFixtureMode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtNetLightOrderJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ArtNetStartChannel")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ArtNetUniverse")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("BridgeId")
                         .IsRequired()
